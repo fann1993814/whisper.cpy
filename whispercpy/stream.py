@@ -1,0 +1,159 @@
+import time
+import numpy as np
+
+from typing import List
+
+from .core import WhipserCPP
+from .utils import run_aysnc, is_silent
+from .constant import C_FLOAT_TO_BYTES_RATIO, WHISPER_SAMPLE_RATE, STREAMING_ENDING
+from .interface import TranscriptSegment
+
+
+class WhisperStream:
+    def __init__(self,
+                 core: WhipserCPP,
+                 language: str,
+                 step_ms: int = 1000,
+                 keep_ms: int = 250,
+                 length_ms: int = 10000):
+        self.core = core
+
+        self.step_ms = min(step_ms, 1000)
+        self.keep_ms = min(keep_ms, step_ms)
+        self.length_ms = max(length_ms, step_ms)
+
+        self.n_samples_step = int(
+            (1e-3*self.step_ms)*WHISPER_SAMPLE_RATE*C_FLOAT_TO_BYTES_RATIO)
+        self.n_samples_len = int((1e-3*self.length_ms)
+                                 * WHISPER_SAMPLE_RATE*C_FLOAT_TO_BYTES_RATIO)
+        self.n_samples_keep = int(
+            (1e-3*self.keep_ms)*WHISPER_SAMPLE_RATE*C_FLOAT_TO_BYTES_RATIO)
+        self.n_samples_30s = int(
+            (1e-3*30000.0)*WHISPER_SAMPLE_RATE*C_FLOAT_TO_BYTES_RATIO)
+
+        self.active_speech = False
+        self.prev_inferece_start_steam_ms = 0
+        self.prev_inferece_start_timing = -1
+
+        self.pcmf32 = b''
+        self.pcmf32_old = b''
+        self.pcmf32_new = b''
+
+        self.n_iter = 0
+        self.n_new_line = max(1, int(self.length_ms /
+                                     self.step_ms - 1))
+        self.stream_ms = 0
+        self.transcript_list = []
+        self.transcript = TranscriptSegment(index=len(self.transcript_list))
+
+        self.state = self.core.init_state()
+
+        # for streaming setting, with greedy decode (fast)
+        self.params = self.core.init_params(
+            strategy=0,
+            best_of=1,
+            translate=False,
+            no_timestamps=True,
+            no_context=True,
+            single_segment=True,
+            print_progress=False,
+            print_special=False,
+            print_realtime=False,
+            print_timestamps=False,
+            language=language)
+
+    def __del__(self,):
+        if self.state:
+            self.core.lib.whisper_free_state(self.state)
+
+    @run_aysnc
+    def pipe(self, chunk: bytes):
+        if chunk != STREAMING_ENDING:
+            # counting
+            self.stream_ms += len(
+                chunk) // WHISPER_SAMPLE_RATE // C_FLOAT_TO_BYTES_RATIO * 1000
+
+            # collect
+            self.pcmf32_new += chunk
+
+            # enough to process
+            if len(self.pcmf32_new) >= self.n_samples_step:
+                n_samples_new = len(self.pcmf32_new)
+
+                # take up to params.length_ms audio from previous iteration
+                n_samples_take = min(len(self.pcmf32_old), max(
+                    0, self.n_samples_keep + self.n_samples_len - n_samples_new))
+
+                self.pcmf32 = self.pcmf32_old[-n_samples_take:]
+                self.pcmf32 += self.pcmf32_new
+
+                self.pcmf32_old = self.pcmf32
+
+                # speech trigger
+                if self.active_speech or not is_silent(np.frombuffer(self.pcmf32, dtype=np.float32)):
+                    # get previous inference time spend
+                    prev_inference_spend_time = (
+                        time.time() - self.prev_inferece_start_timing) if self.prev_inferece_start_timing > 0 else 0
+                    # get previous audio time consume
+                    prev_inference_consume_audio_time = (
+                        self.stream_ms - self.prev_inferece_start_steam_ms) // 1000
+
+                    # avoid inference slow, skip frequent inference
+                    if prev_inference_spend_time <= prev_inference_consume_audio_time or (self.n_iter + 1) % self.n_new_line == 0:
+                        # run the inference
+                        self.prev_inferece_start_timing = time.time()
+                        self.prev_inferece_start_steam_ms = self.stream_ms
+                        self.transcribe()
+
+                    self.n_iter += 1
+                    self.active_speech = True
+
+                    # flush
+                    self.flush()
+
+                # reset pcm32f_new
+                self.pcmf32_new = b''
+        else:
+            self._thread_join = True
+            self.flush(True)
+
+    def transcribe(self,):
+        data = np.frombuffer(self.pcmf32, dtype=np.float32)
+        segments = self.core.inferece(data, self.state, self.params)
+        self.post_process(segments)
+
+    def post_process(self, segments: List[TranscriptSegment]):
+        text = ''
+
+        for segment in segments:
+            text += segment.text
+
+        self.transcript.text = text
+        self.transcript.t1 = self.stream_ms // 10
+        self.transcript.t0 = (self.stream_ms -
+                              int(len(self.pcmf32) / ((WHISPER_SAMPLE_RATE * C_FLOAT_TO_BYTES_RATIO))) * 1000) // 10
+
+    def flush(self, force: bool = False):
+        if self.n_iter % self.n_new_line == 0 or force:
+            # keep part of the audio for next iteration to try to mitigate word boundary issues
+            self.pcmf32_old = self.pcmf32[-self.n_samples_keep:]
+
+            # Append transcript into transcript_list
+            if self.transcript.text:
+                self.transcript_list.append(self.transcript)
+
+            # Reset current transcript
+            self.transcript = TranscriptSegment(
+                index=len(self.transcript_list))
+
+            # Reset speech
+            self.active_speech = False
+
+            # Reset
+            self.prev_inferece_start_timing = 0
+
+    def get_transcripts(self,) -> List[TranscriptSegment]:
+        return self.transcript_list
+
+    def get_transcript(self,) -> TranscriptSegment:
+        return self.transcript

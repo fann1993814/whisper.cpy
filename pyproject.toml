@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "whispercpy"
+version = "0.1.0"
+description = "Python wrapper for Whisper.cpp"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    { name = "Jason Fan", email = "fann1993814@gmail.com" }
+]
+keywords = ["speech recognition", "speech to text", "STT", "ASR", "NLP"]
+classifiers = [
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Multimedia :: Sound/Audio :: Speech"
+]
+dependencies = [
+    "numpy>=1.25",
+    "sounddevice>=0.5.0"
+]
