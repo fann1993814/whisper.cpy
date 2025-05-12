@@ -59,7 +59,7 @@ pip install git+https://github.com/fann1993814/whispercpy.git
 # Usage
 
 ## Basic Audio Transcribe
-Below these steps, you can trace [trancribe.py](./examples/trancribe.py)
+Follow below steps, and trace [trancribe.py](./examples/trancribe.py)
 
 ### 1. Share library, model, and testing audio setting
 
@@ -99,7 +99,7 @@ for segment in transcripts:
 - `to_timestamp` can translate the time unit from whisper.cpp into a formal repesenation
 
 # Live Streaming
-Below these steps, you can trace [live.py](./examples/live.py)
+Follow below steps, and trace [live.py](./examples/live.py)
 
 **Note: for realtime inference,**
   - `tiny/base/small` for cpu
@@ -176,4 +176,4 @@ except KeyboardInterrupt:
 - `STREAMING_ENDING`: a singal for stopping transcribing
 
 # License
-This project follow [whisper.cpp](https://github.com/ggml-org/whisper.cpp/) license as MIT
+This project follows [whisper.cpp](https://github.com/ggml-org/whisper.cpp/) license as MIT
