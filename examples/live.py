@@ -9,7 +9,7 @@ WHISPER_CPP_PATH = "../../whisper.cpp"
 lib_path = f"{WHISPER_CPP_PATH}/build/src/libwhisper.dylib"
 model_path = f"{WHISPER_CPP_PATH}/models/ggml-tiny.bin"
 
-core = WhipserCPP(lib_path, model_path, use_gpu=False)
+core = WhipserCPP(lib_path, model_path, use_gpu=True)
 asr = WhisperStream(core, language='en')
 
 samplerate = 16000
