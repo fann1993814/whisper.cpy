@@ -6,7 +6,7 @@ Python wrapper for [whisper.cpp](https://github.com/ggml-org/whisper.cpp/)
 
 1. Lightweight, using `ctypes.CDLL` to call functions from the `libwhisper` shared library.
 
-2. Migrate the `whisper-stream` functions to deal with live streaming case for async-processing
+2. Migrate the [`whisper-stream`](https://github.com/ggml-org/whisper.cpp/tree/master/examples/stream) functions to deal with live streaming case for async-processing
 
 # Index
 <!-- TOC -->
@@ -78,6 +78,7 @@ import soundfile as sf
 
 data, sr = sf.read(audio_wav, dtype='float32')
 ```
+
 ### 3. Load library and model with whispercpy, and transcribe, and get transcript results
 
 ```py
