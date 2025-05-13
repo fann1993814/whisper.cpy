@@ -10,10 +10,11 @@ from .interface import TranscriptSegment
 
 
 class WhipserCPP:
-    def __init__(self,
-                 lib_path: str,
-                 model_path: str,
-                 use_gpu: bool = True):
+    def __init__(
+            self,
+            lib_path: str,
+            model_path: str,
+            use_gpu: bool = True):
 
         # === Init lib ===
         self.lib = None
@@ -180,10 +181,11 @@ class WhipserCPP:
 
         return params
 
-    def inferece(self,
-                 data: np.ndarray,
-                 state: Optional[c_void_p] = None,
-                 params: Optional[WhisperFullParams] = None) -> List[TranscriptSegment]:
+    def inferece(
+            self,
+            data: np.ndarray,
+            state: Optional[c_void_p] = None,
+            params: Optional[WhisperFullParams] = None) -> List[TranscriptSegment]:
 
         free = True if not state else False
         state = self.init_state() if not state else state

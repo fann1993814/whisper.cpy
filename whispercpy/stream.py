@@ -10,12 +10,13 @@ from .interface import TranscriptSegment
 
 
 class WhisperStream:
-    def __init__(self,
-                 core: WhipserCPP,
-                 language: str,
-                 step_ms: int = 1000,
-                 keep_ms: int = 250,
-                 length_ms: int = 10000):
+    def __init__(
+            self,
+            core: WhipserCPP,
+            language: str,
+            step_ms: int = 1000,
+            keep_ms: int = 250,
+            length_ms: int = 10000):
         self.core = core
 
         self.step_ms = min(step_ms, 1000)
