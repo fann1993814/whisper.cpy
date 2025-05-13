@@ -4,7 +4,7 @@ import numpy as np
 from typing import List
 
 from .core import WhipserCPP
-from .utils import run_aysnc, is_silent
+from .utils import run_aysnc, is_speech
 from .constant import C_FLOAT_TO_BYTES_RATIO, WHISPER_SAMPLE_RATE, STREAMING_ENDING
 from .interface import TranscriptSegment
 
@@ -90,7 +90,7 @@ class WhisperStream:
                 self.pcmf32_old = self.pcmf32
 
                 # speech trigger
-                if self.active_speech or not is_silent(np.frombuffer(self.pcmf32, dtype=np.float32)):
+                if self.active_speech or is_speech(np.frombuffer(self.pcmf32, dtype=np.float32)):
                     # get previous inference time spend
                     prev_inference_spend_time = (
                         time.time() - self.prev_inferece_start_timing) if self.prev_inferece_start_timing > 0 else 0

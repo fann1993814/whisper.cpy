@@ -19,10 +19,10 @@ def to_timestamp(t: int, comma: bool):
         hours, minutes, sec, "," if comma else ".", msec)
 
 
-def is_silent(audio: np.ndarray, threshold: float = 0.01):
+def is_speech(audio: np.ndarray, threshold: float = 0.01):
     if len(audio) < 2 * WHISPER_SAMPLE_RATE:
-        return True
-    return np.mean(np.abs(audio[-WHISPER_SAMPLE_RATE:])) < threshold
+        return False
+    return np.mean(np.abs(audio[-WHISPER_SAMPLE_RATE:])) >= threshold
 
 
 def run_aysnc(method):
