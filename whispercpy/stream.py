@@ -35,6 +35,7 @@ class WhisperStream:
         self.active_speech = False
         self.prev_inferece_start_steam_ms = 0
         self.prev_inferece_start_timing = -1
+        self.prev_inference_overlap_ms = 0
 
         self.pcmf32 = b''
         self.pcmf32_old = b''
@@ -85,6 +86,10 @@ class WhisperStream:
                 n_samples_take = min(len(self.pcmf32_old), max(
                     0, self.n_samples_keep + self.n_samples_len - n_samples_new))
 
+                # sliding window move, so do not minus overlap
+                if len(self.pcmf32_old) > n_samples_take:
+                    self.prev_inference_overlap_ms = 0
+
                 self.pcmf32 = self.pcmf32_old[-n_samples_take:]
                 self.pcmf32 += self.pcmf32_new
 
@@ -131,13 +136,14 @@ class WhisperStream:
 
         self.transcript.text = text
         self.transcript.t1 = self.stream_ms // 10
-        self.transcript.t0 = (self.stream_ms -
+        self.transcript.t0 = (self.stream_ms - self.prev_inference_overlap_ms -
                               int(len(self.pcmf32) / ((WHISPER_SAMPLE_RATE * C_FLOAT_TO_BYTES_RATIO))) * 1000) // 10
 
     def flush(self, force: bool = False):
         if self.n_iter % self.n_new_line == 0 or force:
             # keep part of the audio for next iteration to try to mitigate word boundary issues
             self.pcmf32_old = self.pcmf32[-self.n_samples_keep:]
+            self.prev_inference_overlap_ms = self.keep_ms
 
             # Append transcript into transcript_list
             if self.transcript.text:
