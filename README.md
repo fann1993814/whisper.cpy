@@ -21,7 +21,7 @@ Python wrapper for [whisper.cpp](https://github.com/ggml-org/whisper.cpp/)
 
 ## 1. Prepare `whisper.cpp` library
 
-Clone whisper.cpp, then get into it
+Clone whisper.cpp, then build it
 
 ```sh
 # clone whisper.cpp
@@ -32,12 +32,8 @@ cd whisper.cpp/
 
 # checkout the stable version (current supporting)
 git checkout v1.7.5
-```
 
-Build library
-
-```sh
-# build  whisper.cpp
+# build whisper.cpp
 cmake -B build
 cmake --build build --config Release
 ```
@@ -45,7 +41,7 @@ cmake --build build --config Release
 Download ggml models
 
 ```sh
-sh ./models/download-ggml-model.sh [base|small|large]
+sh ./models/download-ggml-model.sh [tiny|base|small|large]
 ```
 
 ## 2. Install `whispercpy`
