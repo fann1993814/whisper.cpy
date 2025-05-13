@@ -7,7 +7,7 @@ WHISPER_CPP_PATH = "../../whisper.cpp"
 
 # file path
 audio_wav = f"{WHISPER_CPP_PATH}/samples/jfk.wav"
-model_path = f"{WHISPER_CPP_PATH}/models/ggml-tiny.bin"
+model_path = f"{WHISPER_CPP_PATH}/models/ggml-large-v3-turbo-q5_0.bin"
 library_path = f"{WHISPER_CPP_PATH}/build/src/libwhisper.dylib"
 
 # reading audio
