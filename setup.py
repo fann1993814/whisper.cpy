@@ -36,5 +36,5 @@ setup(
     package_dir={'whispercpy': 'whispercpy'},
     package_data={'': ['*.*', 'data/*']},
     include_package_data=True,
-    install_requires=['numpy>=1.25', 'sounddevice>=0.5.0']
+    install_requires=['numpy>=1.25', 'scipy>=1.13.0', 'sounddevice>=0.5.0']
 )
