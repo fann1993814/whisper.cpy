@@ -12,12 +12,12 @@ else:
         long_description = file.read()
 
 setup(
-    name='whispercpy',
+    name='whisper.cpy',
     version='0.1.0',
     description='Python wrapper for Whisper.cpp',
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url='https://github.com/fann1993814/whispercpy',
+    url='https://github.com/fann1993814/whisper.cpy',
     author='Jason Fan',
     author_email='fann1993814@gmail.com',
     license='MIT',

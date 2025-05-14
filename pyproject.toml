@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "whispercpy"
+name = "whisper.cpy"
 version = "0.1.0"
 description = "Python wrapper for Whisper.cpp"
 readme = "README.md"
