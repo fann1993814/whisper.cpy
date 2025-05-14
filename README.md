@@ -1,4 +1,4 @@
-# whispercpy
+# whisper.cpy
 
 Python wrapper for [whisper.cpp](https://github.com/ggml-org/whisper.cpp/)
 
@@ -25,7 +25,7 @@ Clone whisper.cpp, then build it
 
 ```sh
 # clone whisper.cpp
-git clone https://github.com/ggml-org/whisper.cpp.git
+git clone https://github.com/ggml-org/whisper.cpp
 
 # nevagation into this folder
 cd whisper.cpp/
@@ -44,12 +44,12 @@ Download ggml models
 sh ./models/download-ggml-model.sh [tiny|base|small|large]
 ```
 
-## 2. Install `whispercpy`
+## 2. Install `whisper.cpy`
 
 Install from source:
 
 ```sh
-pip install git+https://github.com/fann1993814/whispercpy.git
+pip install git+https://github.com/fann1993814/whisper.cpy
 ```
 
 # Usage
@@ -75,7 +75,7 @@ import soundfile as sf
 data, sr = sf.read(audio_wav, dtype='float32')
 ```
 
-### 3. Load library and model with whispercpy, and transcribe, and get transcript results
+### 3. Load library and model with whisper.cpy, and transcribe, and get transcript results
 
 ```py
 from whispercpy import WhipserCPP
