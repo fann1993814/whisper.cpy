@@ -7,9 +7,9 @@ from whispercpy.constant import STREAMING_ENDING
 WHISPER_CPP_PATH = "../../whisper.cpp"
 
 lib_path = f"{WHISPER_CPP_PATH}/build/src/libwhisper.dylib"
-model_path = f"{WHISPER_CPP_PATH}/models/ggml-small-q5_1.bin"
+model_path = f"{WHISPER_CPP_PATH}/models/ggml-tiny.bin"
 
-core = WhipserCPP(lib_path, model_path, use_gpu=True)
+core = WhipserCPP(lib_path, model_path, use_gpu=False)
 asr = WhisperStream(core, language='en')
 
 samplerate = 16000
