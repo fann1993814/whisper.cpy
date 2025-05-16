@@ -15,7 +15,7 @@ class WhisperStream:
             core: WhipserCPP,
             language: str,
             step_ms: int = 1000,
-            keep_ms: int = 250,
+            keep_ms: int = 200,
             length_ms: int = 10000):
         self.core = core
 
