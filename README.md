@@ -131,9 +131,9 @@ def callback(indata, frames, time, status):
         print(f"\r{transcript.text}", end="", flush=True)
 
 ```
-- `asr.pipe()`: a threading function for async to process audio for transcribing continuously
-- `asr.get_transcript()`: get the current transcirption
-- `asr.get_transcripts()`: get whole transcirptions
+- `asr.pipe`: a threading function for async to process audio for transcribing continuously
+- `asr.get_transcript`: get the current transcirption
+- `asr.get_transcripts`: get whole transcirptions
 
 ### 3. Setting microphone recording
 
