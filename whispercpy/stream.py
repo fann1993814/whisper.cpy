@@ -72,7 +72,7 @@ class WhisperStream:
         if chunk != STREAMING_ENDING:
             # counting
             self.stream_ms += len(
-                chunk) // WHISPER_SAMPLE_RATE // C_FLOAT_TO_BYTES_RATIO * 1000
+                chunk) * 1000 / (WHISPER_SAMPLE_RATE * C_FLOAT_TO_BYTES_RATIO)
 
             # collect
             self.pcmf32_new += chunk
@@ -93,8 +93,8 @@ class WhisperStream:
                 # speech trigger
                 if self.active_speech or is_speech(np.frombuffer(self.pcmf32, dtype=np.float32)):
                     # get previous inference time spend
-                    prev_inference_spend_time = (
-                        time.time() - self.prev_inferece_start_timing) if self.prev_inferece_start_timing > 0 else 0
+                    prev_inference_spend_time = int((
+                        time.time() - self.prev_inferece_start_timing) * 100) / 100 if self.prev_inferece_start_timing > 0 else 0
                     # get previous audio time consume
                     prev_inference_consume_audio_time = (
                         self.stream_ms - self.prev_inferece_start_steam_ms) / 1000
@@ -131,8 +131,8 @@ class WhisperStream:
 
         self.transcript.text = text
         self.transcript.t1 = self.stream_ms // 10
-        self.transcript.t0 = (self.stream_ms - int(len(self.pcmf32) /
-                              ((WHISPER_SAMPLE_RATE * C_FLOAT_TO_BYTES_RATIO))) * 1000) // 10
+        self.transcript.t0 = (self.stream_ms - int(len(self.pcmf32) * 1000 /
+                              ((WHISPER_SAMPLE_RATE * C_FLOAT_TO_BYTES_RATIO)))) // 10
 
     def flush(self, force: bool = False):
         if self.n_iter % self.n_new_line == 0 or force:
