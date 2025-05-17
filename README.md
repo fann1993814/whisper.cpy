@@ -131,9 +131,9 @@ def callback(indata, frames, time, status):
         print(f"\r{transcript.text}", end="", flush=True)
 
 ```
-- `asr.pipe`: a threading function for async to process audio for transcribing continuously
-- `asr.get_transcript`: get the current transcirption
-- `asr.get_transcripts`: get whole transcirptions
+- `asr.pipe()`: a threading function for async to process audio for transcribing continuously
+- `asr.get_transcript()`: get the current transcirption
+- `asr.get_transcripts()`: get whole transcirptions
 
 ### 3. Setting microphone recording
 
@@ -142,7 +142,7 @@ import sounddevice as sd
 from whispercpy.constant import STREAMING_ENDING
 
 samplerate = 16000
-block_duration = 1.0
+block_duration = 0.25
 block_size = int(samplerate * block_duration)
 channels = 1
 
@@ -158,7 +158,7 @@ try:
 except KeyboardInterrupt:
     print("⏹️ Recording stopped.")
     # send end signal
-    asr.pipe(STREAMING_ENDING)
+    asr.pipe(STREAMING_ENDING).join()
 
 # Result
 #
@@ -170,7 +170,7 @@ except KeyboardInterrupt:
 # [00:00:00.000 --> 00:00:10.000]  Testing. Testing. Can you hear me? This is a sour testing.
 # [00:00:13.000 --> 00:00:23.000]  I'm trying to speak English to testing our ASR system. Can you give me a response?
 ```
-- `STREAMING_ENDING`: a singal for stopping transcribing
+- `STREAMING_ENDING`: a singal for stopping transcribing, and use `join()` for waiting last thread complete.
 
 # License
 This project follows [whisper.cpp](https://github.com/ggml-org/whisper.cpp/) license as MIT
