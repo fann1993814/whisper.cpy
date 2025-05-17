@@ -57,6 +57,6 @@ try:
             sd.sleep(1000)
 except KeyboardInterrupt:
     print("⏹️ Recording stopped.")
-    # send end signal
-    asr.pipe(STREAMING_ENDING)
+    # send end signal, and await
+    asr.pipe(STREAMING_ENDING).join()
     print_result()

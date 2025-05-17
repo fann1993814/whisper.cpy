@@ -120,7 +120,6 @@ class WhisperStream:
                 # reset pcm32f_new
                 self.pcmf32_new = b''
         else:
-            self._thread_join = True
             self.flush(True)
 
     def transcribe(self,):

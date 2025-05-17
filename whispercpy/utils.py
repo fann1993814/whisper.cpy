@@ -66,9 +66,6 @@ def run_aysnc(method):
         thread = threading.Thread(target=thread_target)
         thread.start()
 
-        if self._thread_join:
-            thread.join()
-
-        return
+        return thread
 
     return wrapper
