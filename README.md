@@ -52,6 +52,12 @@ Install from source:
 pip install git+https://github.com/fann1993814/whisper.cpy
 ```
 
+Install from pypi:
+
+```sh
+pip install whispercpy
+```
+
 # Usage
 
 ## Basic Audio Transcribe
