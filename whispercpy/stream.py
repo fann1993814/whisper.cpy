@@ -19,7 +19,7 @@ class WhisperStream:
             length_ms: int = 10000):
         self.core = core
 
-        self.step_ms = min(step_ms, 1000)
+        self.step_ms = step_ms
         self.keep_ms = min(keep_ms, step_ms)
         self.length_ms = max(length_ms, step_ms)
 
