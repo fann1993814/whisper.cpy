@@ -97,7 +97,7 @@ class WhisperStream:
                         time.time() - self.prev_inferece_start_timing) if self.prev_inferece_start_timing > 0 else 0
                     # get previous audio time consume
                     prev_inference_consume_audio_time = (
-                        self.stream_ms - self.prev_inferece_start_steam_ms) // 1000
+                        self.stream_ms - self.prev_inferece_start_steam_ms) / 1000
 
                     # avoid inference slow, skip frequent inference
                     if prev_inference_spend_time <= prev_inference_consume_audio_time or (self.n_iter + 1) % self.n_new_line == 0:
