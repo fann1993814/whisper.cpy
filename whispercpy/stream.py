@@ -33,8 +33,8 @@ class WhisperStream:
             (1e-3*30000.0)*WHISPER_SAMPLE_RATE*C_FLOAT_TO_BYTES_RATIO)
 
         self.active_speech = False
-        self.prev_inferece_start_steam_ms = 0
-        self.prev_inferece_start_timing = -1
+        self.prev_inference_start_steam_ms = 0
+        self.prev_inference_start_timing = -1
 
         self.pcmf32 = b''
         self.pcmf32_old = b''
@@ -94,16 +94,16 @@ class WhisperStream:
                 if self.active_speech or is_speech(np.frombuffer(self.pcmf32, dtype=np.float32)):
                     # get previous inference time spend
                     prev_inference_spend_time = int((
-                        time.time() - self.prev_inferece_start_timing) * 100) / 100 if self.prev_inferece_start_timing > 0 else 0
+                        time.time() - self.prev_inference_start_timing) * 100) / 100 if self.prev_inference_start_timing > 0 else 0
                     # get previous audio time consume
                     prev_inference_consume_audio_time = (
-                        self.stream_ms - self.prev_inferece_start_steam_ms) / 1000
+                        self.stream_ms - self.prev_inference_start_steam_ms) / 1000
 
                     # avoid inference slow, skip frequent inference
                     if prev_inference_spend_time <= prev_inference_consume_audio_time or (self.n_iter + 1) % self.n_new_line == 0:
                         # run the inference
-                        self.prev_inferece_start_timing = time.time()
-                        self.prev_inferece_start_steam_ms = self.stream_ms
+                        self.prev_inference_start_timing = time.time()
+                        self.prev_inference_start_steam_ms = self.stream_ms
                         self.transcribe()
 
                     self.n_iter += 1
@@ -151,7 +151,7 @@ class WhisperStream:
             self.active_speech = False
 
             # Reset
-            self.prev_inferece_start_timing = 0
+            self.prev_inference_start_timing = 0
 
     def get_transcripts(self,) -> List[TranscriptSegment]:
         return self.transcript_list
