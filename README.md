@@ -111,7 +111,7 @@ core = WhipserCPP(lib_path, model_path, use_gpu=False)
 asr = WhisperStream(core, language='en')
 ```
 
-### 2. Callback function setting
+### 2. Callback setting
 ```py
 count = 0
 
@@ -135,7 +135,7 @@ def callback(indata, frames, time, status):
 - `asr.get_transcript`: get the current transcirption
 - `asr.get_transcripts`: get whole transcirptions
 
-### 3. Setting microphone recording
+### 3. Microphone recording setting
 
 ```py
 import sounddevice as sd
