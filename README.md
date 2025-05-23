@@ -199,7 +199,7 @@ except KeyboardInterrupt:
 # 🎤 Recording for ASR... Press Ctrl+C to stop.
 # This is my voice test.
 # --
-#  Can you hear me?
+# Can you hear me?
 # --
 # ^C⏹️ Recording stopped.
 # [00:00:00.800 --> 00:00:11.000]  This is my voice test.
