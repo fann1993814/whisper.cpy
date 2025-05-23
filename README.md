@@ -142,7 +142,7 @@ Follow below steps, and trace [live.py](./examples/live.py)
 from whispercpy import WhipserCPP, WhisperStream
 
 core = WhipserCPP(lib_path, model_path, use_gpu=False)
-asr = WhisperStream(core, language='en', token_mode=True)
+asr = WhisperStream(core, language='en', return_token=True)
 ```
 
 ### 2. Callback setting

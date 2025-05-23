@@ -19,7 +19,7 @@ class WhisperStream:
             step_ms: int = 500,
             keep_ms: int = 200,
             length_ms: int = 10000,
-            token_mode: bool = False):
+            return_token: bool = False):
         self.core = core
 
         self.step_ms = step_ms
@@ -53,21 +53,21 @@ class WhisperStream:
 
         self.state = self.core.init_state()
 
-        self.token_mode = token_mode
+        self.return_token = return_token
 
         # for streaming setting, with greedy decode (fast)
         self.params = self.core.init_params(
             strategy=0,
             best_of=1,
             translate=False,
-            no_timestamps=False if token_mode else True,
+            no_timestamps=False if return_token else True,
             no_context=True,
             single_segment=True,
             print_progress=False,
             print_special=False,
             print_realtime=False,
             print_timestamps=False,
-            token_timestamps=True if token_mode else False,
+            token_timestamps=True if return_token else False,
             language=language)
 
     def __del__(self,):
@@ -150,7 +150,7 @@ class WhisperStream:
 
         for segment in segments:
             text += segment.text
-            if self.token_mode:
+            if self.return_token:
                 for token in segment.tokens:
                     t0 = int(self.transcript.t0 + token.t0 * rescale)
                     t1 = int(self.transcript.t0 + token.t1 * rescale)
