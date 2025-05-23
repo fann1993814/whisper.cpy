@@ -5,8 +5,8 @@ import numpy as np
 from typing import List, Optional
 from ctypes import c_int32, c_int64, c_float, c_char_p, c_void_p
 
-from .structs import WhisperContextParams, WhisperFullParams
-from .interface import TranscriptSegment
+from .structs import WhisperContextParams, WhisperFullParams, WhisperTokenData
+from .interface import TranscriptSegment, TranscriptToken
 
 
 class WhipserCPP:
@@ -51,8 +51,16 @@ class WhipserCPP:
         self.lib.whisper_full_get_segment_t1_from_state.argtypes = [
             c_void_p, c_int32]
         self.lib.whisper_full_get_segment_t1_from_state.restype = c_int64
+        self.lib.whisper_full_n_tokens_from_state.argtypes = [
+            c_void_p, c_int32]
+        self.lib.whisper_full_n_tokens_from_state.restype = c_int32
+        self.lib.whisper_full_get_token_data_from_state.argtypes = [
+            c_void_p, c_int32, c_int32]
+        self.lib.whisper_full_get_token_data_from_state.restype = WhisperTokenData
         self.lib.whisper_free.argtypes = [c_void_p]
         self.lib.whisper_free.restype = c_void_p
+        self.lib.whisper_token_to_str.argtypes = [c_void_p, c_int32]
+        self.lib.whisper_token_to_str.restype = c_char_p
         self.lib.whisper_free_state.argtypes = [c_void_p]
         self.lib.whisper_free_state.restype = c_void_p
 
@@ -207,7 +215,22 @@ class WhipserCPP:
             t1 = self.lib.whisper_full_get_segment_t1_from_state(
                 state, i) if not params.no_timestamps else None
 
-            segments.append(TranscriptSegment(i, text, t0, t1))
+            tokens = []
+            n_tokens = self.lib.whisper_full_n_tokens_from_state(state, i)
+
+            for j in range(n_tokens):
+                token_data = self.lib.whisper_full_get_token_data_from_state(
+                    state, i, j)
+                token_text = self.lib.whisper_token_to_str(
+                    self.ctx, token_data.id).decode('utf-8')
+
+                if params.token_timestamps:
+                    tokens.append(TranscriptToken(
+                        token_text, token_data.t0, token_data.t1))
+                else:
+                    tokens.append(TranscriptToken(token_text))
+
+            segments.append(TranscriptSegment(i, text, tokens, t0, t1))
 
         if free:
             self.free_state(state)
@@ -220,6 +243,9 @@ class WhipserCPP:
             language: str,
             beam_size: int = 5,
             translate: bool = False,
+            token_timestamps: bool = False,
+            thold_pt: float = 0.01,
+            thold_ptsum: float = 0.01,
             max_len: int = 0,
             split_on_word: bool = False,
             max_tokens: int = 0,
@@ -241,6 +267,9 @@ class WhipserCPP:
             print_progress=False,
             print_realtime=False,
             print_timestamps=False,
+            token_timestamps=token_timestamps,
+            thold_pt=thold_pt,
+            thold_ptsum=thold_ptsum,
             max_len=max_len,
             split_on_word=split_on_word,
             max_tokens=max_tokens,

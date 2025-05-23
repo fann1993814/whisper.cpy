@@ -10,7 +10,7 @@ lib_path = f"{WHISPER_CPP_PATH}/build/src/libwhisper.dylib"
 model_path = f"{WHISPER_CPP_PATH}/models/ggml-tiny.bin"
 
 core = WhipserCPP(lib_path, model_path, use_gpu=True)
-asr = WhisperStream(core, language='en')
+asr = WhisperStream(core, language='en', token_mode=True)
 
 samplerate = 16000
 block_duration = 0.25
@@ -41,6 +41,10 @@ def print_result():
     for transcript in transcripts:
         print(f'[{to_timestamp(transcript.t0, False)}' +
               " --> " + f'{to_timestamp(transcript.t1, False)}] ' + transcript.text)
+        print('-------------------------------')
+        print('\n'.join([f'[{to_timestamp(token.t0, False)}' +
+                         " --> " + f'{to_timestamp(token.t1, False)}] {token.text}' for token in transcript.tokens]))
+        print('-------------------------------')
 
 
 # Recording

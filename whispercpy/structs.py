@@ -1,5 +1,4 @@
-import ctypes
-from ctypes import POINTER, Structure, c_bool, c_size_t,  c_int32, c_float, c_char_p, c_void_p
+from ctypes import POINTER, Structure, c_bool, c_int64, c_size_t,  c_int32, c_float, c_char_p, c_void_p
 
 
 class GreedyParams(Structure):
@@ -91,14 +90,14 @@ class WhisperFullParams(Structure):
     ]
 
 
-class WhisperAheadsParams(ctypes.Structure):
+class WhisperAheadsParams(Structure):
     _fields_ = [
-        ("n_heads", ctypes.c_size_t),
-        ("heads", ctypes.c_void_p),
+        ("n_heads", c_size_t),
+        ("heads", c_void_p),
     ]
 
 
-class WhisperContextParams(ctypes.Structure):
+class WhisperContextParams(Structure):
     _fields_ = [
         ("use_gpu", c_bool),
         ("flash_attn", c_bool),
@@ -111,4 +110,22 @@ class WhisperContextParams(ctypes.Structure):
         ("dtw_aheads", WhisperAheadsParams),
         #
         ("dtw_mem_size", c_size_t),
+    ]
+
+
+class WhisperTokenData(Structure):
+    _fields_ = [
+        ("id", c_int32),
+        ("tid", c_int32),
+        #
+        ("p", c_float),
+        ("plog", c_float),
+        ("pt", c_float),
+        ("ptsum", c_float),
+        #
+        ('t0', c_int64),
+        ('t1', c_int64),
+        #
+        ('t_dtw', c_int64),
+        ('vlen', c_float)
     ]
