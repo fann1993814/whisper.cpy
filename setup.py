@@ -13,7 +13,7 @@ else:
 
 setup(
     name='whispercpy',
-    version='0.1.0',
+    version='0.1.1',
     description='Python wrapper for Whisper.cpp',
     long_description=long_description,
     long_description_content_type="text/markdown",

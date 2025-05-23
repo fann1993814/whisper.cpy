@@ -3,10 +3,12 @@ import numpy as np
 
 from typing import List
 
+import transcribe
+
 from .core import WhipserCPP
 from .utils import run_aysnc, is_speech
 from .constant import C_FLOAT_TO_BYTES_RATIO, WHISPER_SAMPLE_RATE, STREAMING_ENDING
-from .interface import TranscriptSegment
+from .interface import TranscriptSegment, TranscriptToken
 
 
 class WhisperStream:
@@ -16,7 +18,8 @@ class WhisperStream:
             language: str,
             step_ms: int = 500,
             keep_ms: int = 200,
-            length_ms: int = 10000):
+            length_ms: int = 10000,
+            return_token: bool = False):
         self.core = core
 
         self.step_ms = step_ms
@@ -50,18 +53,21 @@ class WhisperStream:
 
         self.state = self.core.init_state()
 
+        self.return_token = return_token
+
         # for streaming setting, with greedy decode (fast)
         self.params = self.core.init_params(
             strategy=0,
             best_of=1,
             translate=False,
-            no_timestamps=True,
+            no_timestamps=False if return_token else True,
             no_context=True,
             single_segment=True,
             print_progress=False,
             print_special=False,
             print_realtime=False,
             print_timestamps=False,
+            token_timestamps=True if return_token else False,
             language=language)
 
     def __del__(self,):
@@ -130,15 +136,34 @@ class WhisperStream:
         self.post_process(segments)
 
     def post_process(self, segments: List[TranscriptSegment]):
+        transcribe_ms = int(len(self.pcmf32) * 1000 /
+                            ((WHISPER_SAMPLE_RATE * C_FLOAT_TO_BYTES_RATIO)))
+        rescale = (transcribe_ms -
+                   self.prev_inference_overlap_ms) / transcribe_ms
+
+        self.transcript.t1 = self.stream_ms // 10
+        self.transcript.t0 = (
+            self.stream_ms + self.prev_inference_overlap_ms - transcribe_ms) // 10
+
         text = ''
+        tokens = []
 
         for segment in segments:
             text += segment.text
+            if self.return_token:
+                for token in segment.tokens:
+                    t0 = int(self.transcript.t0 + token.t0 * rescale)
+                    t1 = int(self.transcript.t0 + token.t1 * rescale)
+
+                    if t0 > self.transcript.t1:
+                        continue
+                    if t1 > self.transcript.t1:
+                        t1 = self.transcript.t1
+
+                    tokens.append(TranscriptToken(token.text, t0, t1))
 
         self.transcript.text = text
-        self.transcript.t1 = self.stream_ms // 10
-        self.transcript.t0 = (self.stream_ms + self.prev_inference_overlap_ms - int(len(self.pcmf32) * 1000 /
-                              ((WHISPER_SAMPLE_RATE * C_FLOAT_TO_BYTES_RATIO)))) // 10
+        self.transcript.tokens = tokens
 
     def flush(self, force: bool = False):
         if self.n_iter % self.n_new_line == 0 or force:
