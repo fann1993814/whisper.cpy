@@ -1,2 +1,2 @@
-from .core import WhipserCPP
+from .core import WhisperCPP
 from .stream import WhisperStream

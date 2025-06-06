@@ -78,11 +78,11 @@ data, sr = sf.read(audio_wav, dtype='float32')
 ### 3. Load library and model with whisper.cpy, and transcribe, and get transcript results
 
 ```py
-from whispercpy import WhipserCPP
+from whispercpy import WhisperCPP
 from whispercpy.utils import to_timestamp
 
 
-model = WhipserCPP(library_path, model_path, use_gpu=True)
+model = WhisperCPP(library_path, model_path, use_gpu=True)
 
 transcripts = model.transcribe(data, language='en', beam_size=5, token_timestamps=True)
 
@@ -139,9 +139,9 @@ Follow below steps, and trace [live.py](./examples/live.py)
 ### 1. Load core engine and steaming decoder with library and model
 
 ```py
-from whispercpy import WhipserCPP, WhisperStream
+from whispercpy import WhisperCPP, WhisperStream
 
-core = WhipserCPP(lib_path, model_path, use_gpu=False)
+core = WhisperCPP(lib_path, model_path, use_gpu=False)
 asr = WhisperStream(core, language='en', return_token=True)
 ```
 

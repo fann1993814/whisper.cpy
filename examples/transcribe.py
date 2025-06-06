@@ -1,6 +1,6 @@
 import soundfile as sf
 
-from whispercpy import WhipserCPP
+from whispercpy import WhisperCPP
 from whispercpy.utils import to_timestamp
 
 WHISPER_CPP_PATH = "../../whisper.cpp"
@@ -14,7 +14,7 @@ library_path = f"{WHISPER_CPP_PATH}/build/src/libwhisper.dylib"
 data, sr = sf.read(audio_wav, dtype='float32')
 
 # load model
-model = WhipserCPP(library_path, model_path, use_gpu=True)
+model = WhisperCPP(library_path, model_path, use_gpu=False)
 
 # run transcirbe
 res = model.transcribe(data, language='en', beam_size=5, token_timestamps=True)

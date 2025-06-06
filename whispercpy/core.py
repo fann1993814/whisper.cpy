@@ -9,7 +9,7 @@ from .structs import WhisperContextParams, WhisperFullParams, WhisperTokenData
 from .interface import TranscriptSegment, TranscriptToken
 
 
-class WhipserCPP:
+class WhisperCPP:
     def __init__(
             self,
             lib_path: str,

@@ -3,9 +3,7 @@ import numpy as np
 
 from typing import List
 
-import transcribe
-
-from .core import WhipserCPP
+from .core import WhisperCPP
 from .utils import run_aysnc, is_speech
 from .constant import C_FLOAT_TO_BYTES_RATIO, WHISPER_SAMPLE_RATE, STREAMING_ENDING
 from .interface import TranscriptSegment, TranscriptToken
@@ -14,7 +12,7 @@ from .interface import TranscriptSegment, TranscriptToken
 class WhisperStream:
     def __init__(
             self,
-            core: WhipserCPP,
+            core: WhisperCPP,
             language: str,
             step_ms: int = 500,
             keep_ms: int = 200,
