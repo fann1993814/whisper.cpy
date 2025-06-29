@@ -16,3 +16,10 @@ class TranscriptSegment:
     tokens: List[TranscriptToken] = None
     t0: Optional[int] = None
     t1: Optional[int] = None
+
+
+@dataclass
+class VoiceSegment:
+    index: int
+    t0: int
+    t1: int

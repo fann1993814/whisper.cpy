@@ -1,4 +1,6 @@
-from ctypes import POINTER, Structure, c_bool, c_int64, c_size_t,  c_int32, c_float, c_char_p, c_void_p
+from ctypes import Structure
+from ctypes import POINTER, CFUNCTYPE
+from ctypes import c_bool, c_int64, c_size_t,  c_int32, c_float, c_char_p, c_void_p
 
 
 class GreedyParams(Structure):
@@ -11,6 +13,17 @@ class BeamSearchParams(Structure):
     _fields_ = [
         ("beam_size", c_int32),
         ("patience", c_float),
+    ]
+
+
+class VADParams(Structure):
+    _fields_ = [
+        ("threshold", c_float),
+        ("min_speech_duration_ms", c_int32),
+        ("min_silence_duration_ms", c_int32),
+        ("max_speech_duration_s", c_float),
+        ("speech_pad_ms", c_int32),
+        ("samples_overlap", c_float),
     ]
 
 
@@ -87,6 +100,10 @@ class WhisperFullParams(Structure):
         ("n_grammar_rules", c_size_t),
         ("i_start_rule", c_size_t),
         ("grammar_penalty", c_float),
+        #
+        ("vad", c_bool),
+        ("vad_model_path", c_char_p),
+        ("vad_params", VADParams),
     ]
 
 
@@ -129,3 +146,15 @@ class WhisperTokenData(Structure):
         ('t_dtw', c_int64),
         ('vlen', c_float)
     ]
+
+
+class VADContextParams(Structure):
+    _fields_ = [
+        ("n_threads", c_int32),
+        ("use_gpu", c_bool),
+        ("gpu_device", c_int32)
+    ]
+
+
+GGML_LOG_CALLBACK = CFUNCTYPE(
+    None, c_int32, c_char_p, c_void_p)

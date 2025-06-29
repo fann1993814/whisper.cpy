@@ -69,3 +69,7 @@ def run_aysnc(method):
         return thread
 
     return wrapper
+
+
+def empty_log_callback(level, text, user_data):
+    pass
