@@ -266,7 +266,7 @@ class WhisperCPP:
 
         for i in range(self.lib.whisper_full_n_segments_from_state(state)):
             text = self.lib.whisper_full_get_segment_text_from_state(
-                state, i).decode("utf-8")
+                state, i).decode("utf-8", errors="replace")
 
             t0 = self.lib.whisper_full_get_segment_t0_from_state(
                 state, i) if not params.no_timestamps else None
@@ -280,7 +280,7 @@ class WhisperCPP:
                 token_data = self.lib.whisper_full_get_token_data_from_state(
                     state, i, j)
                 token_text = self.lib.whisper_token_to_str(
-                    self.ctx, token_data.id).decode('utf-8')
+                    self.ctx, token_data.id).decode("utf-8", errors="replace")
 
                 if params.token_timestamps:
                     tokens.append(TranscriptToken(
