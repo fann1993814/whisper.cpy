@@ -12,7 +12,7 @@ Python wrapper for [whisper.cpp](https://github.com/ggml-org/whisper.cpp/)
 <!-- TOC -->
 * [Preparing](#preparing)
 * [Usage](#usage)
-  * [Basic Audio Transcribe](#basic-audio-transcribe)
+  * [Basic Audio Transcribe and VAD](#basic-audio-transcribe)
   * [Live Streaming](#live-streaming)
 * [License](#license)
 <!-- TOC -->
@@ -31,7 +31,7 @@ git clone https://github.com/ggml-org/whisper.cpp
 cd whisper.cpp/
 
 # checkout the stable version (current supporting)
-git checkout v1.7.5
+git checkout v1.7.6
 
 # build whisper.cpp
 cmake -B build
@@ -41,7 +41,11 @@ cmake --build build --config Release
 Download ggml models
 
 ```sh
+# ASR model
 sh ./models/download-ggml-model.sh [tiny|base|small|large]
+
+# VAD model
+sh ./models/download-vad-model.sh silero-v5.1.2
 ```
 
 ## 2. Install `whisper.cpy`
@@ -54,7 +58,7 @@ pip install git+https://github.com/fann1993814/whisper.cpy
 
 # Usage
 
-## Basic Audio Transcribe
+## Basic Audio Transcribe and Voice Activity Detection
 Follow below steps, and trace [trancribe.py](./examples/trancribe.py)
 
 ### 1. Share library, model, and testing audio setting
@@ -63,7 +67,8 @@ Follow below steps, and trace [trancribe.py](./examples/trancribe.py)
 # WHISPER_CPP_PATH is the whisper.cpp project location
 
 audio_wav = f"{WHISPER_CPP_PATH}/samples/jfk.wav"
-model_path = f"{WHISPER_CPP_PATH}/models/ggml-tiny.bin"
+asr_model_path = f"{WHISPER_CPP_PATH}/models/ggml-tiny.bin"
+vad_model_path = f"{WHISPER_CPP_PATH}/models/ggml-silero-v5.1.2.bin"
 library_path = f"{WHISPER_CPP_PATH}/build/src/libwhisper.dylib" # Mac: dylib, Linux: so, Win: dll
 ```
 
@@ -82,21 +87,37 @@ from whispercpy import WhisperCPP
 from whispercpy.utils import to_timestamp
 
 
-model = WhisperCPP(library_path, model_path, use_gpu=True)
+model = WhisperCPP(library_path, asr_model_path,
+                   vad_model_path, use_gpu=True, verbose=False)
 
-transcripts = model.transcribe(data, language='en', beam_size=5, token_timestamps=True)
+print('--------- VAD Result ----------')
 
-for segment in transcripts:
+# get vad results
+for segment in model.vad(data):
+    print(f'[{to_timestamp(segment.t0, False)}' +
+          " --> " + f'{to_timestamp(segment.t1, False)}]')
+
+# --------- VAD Result ----------
+# [00:00:00.290 --> 00:00:02.210]
+# [00:00:03.300 --> 00:00:03.770]
+# [00:00:04.000 --> 00:00:04.350]
+# [00:00:05.380 --> 00:00:07.650]
+# [00:00:08.160 --> 00:00:10.590]
+
+print('--------- ASR Result ----------')
+
+# get asr results
+for segment in model.transcribe(data, language='en', beam_size=5, token_timestamps=True):
     print(f'[{to_timestamp(segment.t0, False)}' +
           " --> " + f'{to_timestamp(segment.t1, False)}] ' + segment.text)
-    print('-------------------------------')
+    print('--------- Token Info ----------')
     print('\n'.join([f'[{to_timestamp(token.t0, False)}' +
           " --> " + f'{to_timestamp(token.t1, False)}] {token.text}' for token in segment.tokens]))
     print('-------------------------------')
 
-# Result
+# --------- ASR Result ----------
 # [00:00:00.000 --> 00:00:10.400]  And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country.
-# -------------------------------
+# --------- Token Info ----------
 # [00:00:00.000 --> 00:00:00.000] [_BEG_]
 # [00:00:00.320 --> 00:00:00.320]  And
 # [00:00:00.330 --> 00:00:00.530]  so

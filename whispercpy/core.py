@@ -5,28 +5,37 @@ import numpy as np
 from typing import List, Optional
 from ctypes import c_int32, c_int64, c_float, c_char_p, c_void_p
 
+from .structs import GGML_LOG_CALLBACK
 from .structs import WhisperContextParams, WhisperFullParams, WhisperTokenData
-from .interface import TranscriptSegment, TranscriptToken
+from .structs import VADParams, VADContextParams
+from .interface import TranscriptSegment, TranscriptToken, VoiceSegment
+from .utils import empty_log_callback
+from .constant import FLT_MAX
 
 
 class WhisperCPP:
     def __init__(
             self,
             lib_path: str,
-            model_path: str,
-            use_gpu: bool = True):
+            asr_model_path: str = '',
+            vad_model_path: str = '',
+            use_gpu: bool = True,
+            verbose: bool = True):
 
         # === Init lib ===
         self.lib = None
+        self.asr_model_path = asr_model_path
+        self.vad_model_path = vad_model_path
 
         # === Check path ===
         assert os.path.exists(lib_path) == True
-        assert os.path.exists(model_path) == True
 
         # === Load lib ===
         self.lib = ctypes.cdll.LoadLibrary(lib_path)
 
         # === Function prototypes ===
+
+        # ASR
         self.lib.whisper_context_default_params.argtypes = []
         self.lib.whisper_context_default_params.restype = WhisperContextParams
         self.lib.whisper_init_from_file_with_params.argtypes = [
@@ -64,22 +73,66 @@ class WhisperCPP:
         self.lib.whisper_free_state.argtypes = [c_void_p]
         self.lib.whisper_free_state.restype = c_void_p
 
+        # VAD
+        self.lib.whisper_vad_default_context_params.argtypes = []
+        self.lib.whisper_vad_default_context_params.restype = VADContextParams
+        self.lib.whisper_vad_init_from_file_with_params.argtypes = [
+            c_char_p, VADContextParams]
+        self.lib.whisper_vad_init_from_file_with_params.restype = c_void_p
+        self.lib.whisper_vad_default_params.argtypes = []
+        self.lib.whisper_vad_default_params.restype = VADParams
+        self.lib.whisper_vad_segments_from_samples.argtypes = [
+            c_void_p, VADParams, ctypes.POINTER(c_float), c_int32]
+        self.lib.whisper_vad_segments_from_samples.restype = c_void_p
+        self.lib.whisper_vad_segments_n_segments.argtypes = [c_void_p]
+        self.lib.whisper_vad_segments_n_segments.restype = c_int32
+        self.lib.whisper_vad_segments_get_segment_t0.argtypes = [
+            c_void_p, c_int32]
+        self.lib.whisper_vad_segments_get_segment_t0.restype = c_float
+        self.lib.whisper_vad_segments_get_segment_t1.argtypes = [
+            c_void_p, c_int32]
+        self.lib.whisper_vad_segments_get_segment_t1.restype = c_float
+        self.lib.whisper_vad_free_segments.argtypes = [c_void_p]
+        self.lib.whisper_vad_free_segments.restype = c_void_p
+        self.lib.whisper_vad_free.argtypes = [c_void_p]
+        self.lib.whisper_vad_free.restype = c_void_p
+
+        # Other
+        self.lib.whisper_log_set.argtypes = [GGML_LOG_CALLBACK, c_void_p]
+        self.lib.whisper_log_set.restype = c_void_p
+
+        # === Disable Log ===
+        if not verbose:
+            self.empty_cb = GGML_LOG_CALLBACK(empty_log_callback)
+            self.lib.whisper_log_set(self.empty_cb, None)
+
         # === Load whisper context param ===
-        cparam = self.lib.whisper_context_default_params()
-        cparam.use_gpu = use_gpu
-        cparam.flash_attn |= use_gpu
+        asr_cparam = self.lib.whisper_context_default_params()
+        asr_cparam.use_gpu = use_gpu
+        asr_cparam.flash_attn |= use_gpu
 
-        # === Load whisper model ===
+        vad_cparam = self.lib.whisper_vad_default_context_params()
+        vad_cparam.use_gpu = use_gpu
+
+        # === Load whisper asr model ===
         self.ctx = self.lib.whisper_init_from_file_with_params(
-            model_path.encode(), cparam)
+            asr_model_path.encode(), asr_cparam) if os.path.exists(self.asr_model_path) else None
 
-        assert self.ctx is not None
+        # === Load whisper vad model ===
+        self.vctx = self.lib.whisper_vad_init_from_file_with_params(
+            vad_model_path.encode(), vad_cparam) if os.path.exists(self.vad_model_path) else None
 
     def __del__(self) -> None:
         if self.lib:
-            self.lib.whisper_free(self.ctx)
+            if self.ctx:
+                self.lib.whisper_free(self.ctx)
+            if self.vctx:
+                self.lib.whisper_vad_free(self.vctx)
 
     def init_state(self,) -> c_void_p:
+        if not self.ctx:
+            raise RuntimeError(
+                "ASR Model is not initialized")
         return self.lib.whisper_init_state(self.ctx)
 
     def free_state(self, state: c_void_p) -> None:
@@ -187,6 +240,11 @@ class WhisperCPP:
         params.greedy.best_of = best_of if best_of is not None else params.greedy.best_of
         params.beam_search.beam_size = beam_size if beam_size is not None else params.beam_search.beam_size
 
+        if self.vctx:
+            params.vad = True
+            params.vad_model_path = self.vad_model_path.encode()
+            params.vad_params = self.lib.whisper_vad_default_params()
+
         return params
 
     def inferece(
@@ -286,3 +344,40 @@ class WhisperCPP:
             beam_size=beam_size,)
 
         return self.inferece(audio, params=params)
+
+    def vad(self,
+            audio: np.ndarray,
+            threshold: float = 0.5,
+            min_speech_duration_ms: int = 250,
+            min_silence_duration_ms: int = 100,
+            max_speech_duration_s: float = FLT_MAX,
+            speech_pad_ms: int = 30,
+            samples_overlap: float = 0.1) -> List[VoiceSegment]:
+
+        if not self.vctx:
+            raise RuntimeError(
+                "VAD Model is not initialized")
+
+        params = self.lib.whisper_vad_default_params()
+        params.threshold = threshold
+        params.min_speech_duration_ms = min_speech_duration_ms
+        params.min_silence_duration_ms = min_silence_duration_ms
+        params.max_speech_duration_s = max_speech_duration_s
+        params.speech_pad_ms = speech_pad_ms
+        params.samples_overlap = samples_overlap
+
+        segments = self.lib.whisper_vad_segments_from_samples(self.vctx, params, audio.ctypes.data_as(
+            ctypes.POINTER(c_float)), len(audio))
+
+        assert segments
+
+        results = []
+
+        for i in range(self.lib.whisper_vad_segments_n_segments(segments)):
+            t0 = self.lib.whisper_vad_segments_get_segment_t0(segments, i)
+            t1 = self.lib.whisper_vad_segments_get_segment_t1(segments, i)
+            results.append(VoiceSegment(i, t0, t1))
+
+        self.lib.whisper_vad_free_segments(segments)
+
+        return results
