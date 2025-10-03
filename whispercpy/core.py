@@ -38,9 +38,9 @@ class WhisperCPP:
         # ASR
         self.lib.whisper_context_default_params.argtypes = []
         self.lib.whisper_context_default_params.restype = WhisperContextParams
-        self.lib.whisper_init_from_file_with_params.argtypes = [
+        self.lib.whisper_init_from_file_with_params_no_state.argtypes = [
             c_char_p, WhisperContextParams]
-        self.lib.whisper_init_from_file_with_params.restype = c_void_p
+        self.lib.whisper_init_from_file_with_params_no_state.restype = c_void_p
         self.lib.whisper_full_default_params.argtypes = [c_int32]
         self.lib.whisper_full_default_params.restype = WhisperFullParams
         self.lib.whisper_init_state.argtypes = [c_void_p]
@@ -98,6 +98,8 @@ class WhisperCPP:
         self.lib.whisper_vad_free.restype = c_void_p
 
         # Other
+        self.lib.whisper_version.argtypes = []
+        self.lib.whisper_version.restype = c_char_p
         self.lib.whisper_log_set.argtypes = [GGML_LOG_CALLBACK, c_void_p]
         self.lib.whisper_log_set.restype = c_void_p
 
@@ -109,13 +111,12 @@ class WhisperCPP:
         # === Load whisper context param ===
         asr_cparam = self.lib.whisper_context_default_params()
         asr_cparam.use_gpu = use_gpu
-        asr_cparam.flash_attn |= use_gpu
 
         vad_cparam = self.lib.whisper_vad_default_context_params()
         vad_cparam.use_gpu = use_gpu
 
         # === Load whisper asr model ===
-        self.ctx = self.lib.whisper_init_from_file_with_params(
+        self.ctx = self.lib.whisper_init_from_file_with_params_no_state(
             asr_model_path.encode(), asr_cparam) if os.path.exists(self.asr_model_path) else None
 
         # === Load whisper vad model ===
@@ -128,6 +129,9 @@ class WhisperCPP:
                 self.lib.whisper_free(self.ctx)
             if self.vctx:
                 self.lib.whisper_vad_free(self.vctx)
+
+    def get_version(self,) -> str:
+        return self.lib.whisper_version().decode()
 
     def init_state(self,) -> c_void_p:
         if not self.ctx:

@@ -31,7 +31,7 @@ git clone https://github.com/ggml-org/whisper.cpp
 cd whisper.cpp/
 
 # checkout the stable version (current supporting)
-git checkout v1.7.6
+git checkout v1.8.0
 
 # build whisper.cpp
 cmake -B build
@@ -90,9 +90,14 @@ from whispercpy.utils import to_timestamp
 model = WhisperCPP(library_path, asr_model_path,
                    vad_model_path, use_gpu=True, verbose=False)
 
+print('--------- Lib Version ---------')
+print(model.get_version())
+
+# --------- Lib Version ---------
+# Ver: 1.8.0
+
 print('--------- VAD Result ----------')
 
-# get vad results
 for segment in model.vad(data):
     print(f'[{to_timestamp(segment.t0, False)}' +
           " --> " + f'{to_timestamp(segment.t1, False)}]')
@@ -106,7 +111,6 @@ for segment in model.vad(data):
 
 print('--------- ASR Result ----------')
 
-# get asr results
 for segment in model.transcribe(data, language='en', beam_size=5, token_timestamps=True):
     print(f'[{to_timestamp(segment.t0, False)}' +
           " --> " + f'{to_timestamp(segment.t1, False)}] ' + segment.text)
