@@ -18,6 +18,10 @@ data, sr = sf.read(audio_wav, dtype='float32')
 model = WhisperCPP(library_path, asr_model_path,
                    vad_model_path, use_gpu=False, verbose=True)
 
+print('--------- Lib Version ---------')
+print(model.get_version())
+
+
 print('--------- VAD Result ----------')
 
 # get vad results
