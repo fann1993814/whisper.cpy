@@ -98,7 +98,7 @@ asr = WhisperASR(
 
 vad = SileroVAD(
     lib_path=library_path,
-    model_path=vad_model_path",
+    model_path=vad_model_path,
 )
 
 # -------- VAD Detect ---------
@@ -115,7 +115,7 @@ for segment in vad.detect(data):
 
 # -------- ASR Transcribing --------
 
-for segment in asr.transcribe(audio, language='en', beam_size=5, token_timestamps=True):
+for segment in asr.transcribe(data, language='en', beam_size=5, token_timestamps=True):
     print(f'[{to_timestamp(segment.t0, False)}' +
           " --> " + f'{to_timestamp(segment.t1, False)}] ' + segment.text)
     print('--------- Token Info ----------')
