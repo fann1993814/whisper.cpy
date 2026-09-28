@@ -50,26 +50,5 @@ def is_speech(frame, sample_rate=16000, energy_thold=0.01, freq_thold=100.0):
     return energy_all > energy_thold
 
 
-def run_aysnc(method):
-    @wraps(method)
-    def wrapper(self, *args, **kwargs):
-        if not hasattr(self, "_thread_lock"):
-            self._thread_lock = threading.Lock()
-
-        if not hasattr(self, "_thread_join"):
-            self._thread_join = False
-
-        def thread_target():
-            with self._thread_lock:
-                method(self, *args, **kwargs)
-
-        thread = threading.Thread(target=thread_target)
-        thread.start()
-
-        return thread
-
-    return wrapper
-
-
 def empty_log_callback(level, text, user_data):
     pass
