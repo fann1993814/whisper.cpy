@@ -1,38 +1,38 @@
 import soundfile as sf
 
-from whispercpy import WhisperCPP
-from whispercpy.utils import to_timestamp
+from whispercpy import WhisperASR, SileroVAD
+from whispercpy.common import to_timestamp
 
 WHISPER_CPP_PATH = "../../whisper.cpp"
 
-# file path
-audio_wav = f"{WHISPER_CPP_PATH}/samples/jfk.wav"
-asr_model_path = f"{WHISPER_CPP_PATH}/models/ggml-tiny.bin"
-vad_model_path = f"{WHISPER_CPP_PATH}/models/ggml-silero-v5.1.2.bin"
-library_path = f"{WHISPER_CPP_PATH}/build/src/libwhisper.dylib"
+asr = WhisperASR(
+    lib_path=f"{WHISPER_CPP_PATH}/build/bin/libwhisper.dylib",
+    asr_model_path=f"{WHISPER_CPP_PATH}/models/ggml-tiny.bin",
+    vad_model_path=f"{WHISPER_CPP_PATH}/models/ggml-silero-v6.2.0.bin",
+    use_gpu=True
+)
 
-# reading audio
-data, sr = sf.read(audio_wav, dtype='float32')
+vad = SileroVAD(
+    lib_path=f"{WHISPER_CPP_PATH}/build/bin/libwhisper.dylib",
+    model_path=f"{WHISPER_CPP_PATH}/models/ggml-silero-v6.2.0.bin",
+)
 
-# load model
-model = WhisperCPP(library_path, asr_model_path,
-                   vad_model_path, use_gpu=False, verbose=True)
+print('------- Library Version -------')
+print(asr.get_version())
 
-print('--------- Lib Version ---------')
-print(model.get_version())
-
+audio, sr = sf.read(f"{WHISPER_CPP_PATH}/samples/jfk.wav", dtype='float32')
 
 print('--------- VAD Result ----------')
 
 # get vad results
-for segment in model.vad(data):
+for segment in vad.detect(audio):
     print(f'[{to_timestamp(segment.t0, False)}' +
           " --> " + f'{to_timestamp(segment.t1, False)}]')
 
 print('--------- ASR Result ----------')
 
 # get asr results
-for segment in model.transcribe(data, language='en', beam_size=5, token_timestamps=True):
+for segment in asr.transcribe(audio, language='en', beam_size=5, token_timestamps=True):
     print(f'[{to_timestamp(segment.t0, False)}' +
           " --> " + f'{to_timestamp(segment.t1, False)}] ' + segment.text)
     print('--------- Token Info ----------')

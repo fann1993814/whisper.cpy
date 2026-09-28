@@ -31,7 +31,7 @@ git clone https://github.com/ggml-org/whisper.cpp
 cd whisper.cpp/
 
 # checkout the stable version (current supporting)
-git checkout v1.8.0
+git checkout v1.9.4
 
 # build whisper.cpp
 cmake -B build
@@ -45,7 +45,7 @@ Download ggml models
 sh ./models/download-ggml-model.sh [tiny|base|small|large]
 
 # VAD model
-sh ./models/download-vad-model.sh silero-v5.1.2
+sh ./models/download-vad-model.sh silero-v6.2.0
 ```
 
 ## 2. Install `whisper.cpy`
@@ -68,8 +68,8 @@ Follow below steps, and trace [trancribe.py](./examples/trancribe.py)
 
 audio_wav = f"{WHISPER_CPP_PATH}/samples/jfk.wav"
 asr_model_path = f"{WHISPER_CPP_PATH}/models/ggml-tiny.bin"
-vad_model_path = f"{WHISPER_CPP_PATH}/models/ggml-silero-v5.1.2.bin"
-library_path = f"{WHISPER_CPP_PATH}/build/src/libwhisper.dylib" # Mac: dylib, Linux: so, Win: dll
+vad_model_path = f"{WHISPER_CPP_PATH}/models/ggml-silero-v6.2.0.bin"
+library_path = f"{WHISPER_CPP_PATH}/build/bin/libwhisper.dylib" # Mac: dylib, Linux: so, Win: dll
 ```
 
 ### 2. Read testing audio of whisper.cpp
@@ -83,35 +83,39 @@ data, sr = sf.read(audio_wav, dtype='float32')
 ### 3. Load library and model with whisper.cpy, and transcribe, and get transcript results
 
 ```py
-from whispercpy import WhisperCPP
-from whispercpy.utils import to_timestamp
+from whispercpy import WhisperASR, SileroVAD
+from whispercpy.common import to_timestamp
 
 
-model = WhisperCPP(library_path, asr_model_path,
-                   vad_model_path, use_gpu=True, verbose=False)
+# Models Initialization
 
-print('--------- Lib Version ---------')
-print(model.get_version())
+asr = WhisperASR(
+    lib_path=library_path,
+    asr_model_path=asr_model_path,
+    vad_model_path=vad_model_path,
+    use_gpu=True
+)
 
-# --------- Lib Version ---------
-# Ver: 1.8.0
+vad = SileroVAD(
+    lib_path=library_path,
+    model_path=vad_model_path",
+)
 
-print('--------- VAD Result ----------')
+# -------- VAD Detect ---------
 
-for segment in model.vad(data):
+for segment in vad.detect(data):
     print(f'[{to_timestamp(segment.t0, False)}' +
           " --> " + f'{to_timestamp(segment.t1, False)}]')
 
-# --------- VAD Result ----------
-# [00:00:00.290 --> 00:00:02.210]
-# [00:00:03.300 --> 00:00:03.770]
-# [00:00:04.000 --> 00:00:04.350]
-# [00:00:05.380 --> 00:00:07.650]
-# [00:00:08.160 --> 00:00:10.590]
+# -------- VAD Result ---------
+# [00:00:00.320 --> 00:00:02.270]
+# [00:00:03.270 --> 00:00:04.410]
+# [00:00:05.380 --> 00:00:07.680]
+# [00:00:08.160 --> 00:00:10.620]
 
-print('--------- ASR Result ----------')
+# -------- ASR Transcribing --------
 
-for segment in model.transcribe(data, language='en', beam_size=5, token_timestamps=True):
+for segment in asr.transcribe(audio, language='en', beam_size=5, token_timestamps=True):
     print(f'[{to_timestamp(segment.t0, False)}' +
           " --> " + f'{to_timestamp(segment.t1, False)}] ' + segment.text)
     print('--------- Token Info ----------')
@@ -119,9 +123,10 @@ for segment in model.transcribe(data, language='en', beam_size=5, token_timestam
           " --> " + f'{to_timestamp(token.t1, False)}] {token.text}' for token in segment.tokens]))
     print('-------------------------------')
 
-# --------- ASR Result ----------
+# -------- ASR Result --------
 # [00:00:00.000 --> 00:00:10.400]  And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country.
-# --------- Token Info ----------
+
+# -------- Token Info --------
 # [00:00:00.000 --> 00:00:00.000] [_BEG_]
 # [00:00:00.320 --> 00:00:00.320]  And
 # [00:00:00.330 --> 00:00:00.530]  so
@@ -164,93 +169,162 @@ Follow below steps, and trace [live.py](./examples/live.py)
 ### 1. Load core engine and steaming decoder with library and model
 
 ```py
-from whispercpy import WhisperCPP, WhisperStream
+from whispercpy import StreamingASR
+from whispercpy.common import to_timestamp
 
-core = WhisperCPP(lib_path, model_path, use_gpu=False)
-asr = WhisperStream(core, language='en', return_token=True)
+asr = StreamingASR(
+    lib_path=lib_path,
+    asr_model_path=model_path,
+    language="en",
+    step_ms=250,
+    keep_ms=200,
+    length_ms=10000,
+    return_token=True,
+    use_gpu=True,
+)
 ```
 
-### 2. Callback setting
+### 2. Result printer setting
 ```py
-count = 0
+import threading
 
-def callback(indata, frames, time, status):
-    global count
+stop_printer = threading.Event()
 
-    chunk = indata.copy().tobytes()
-    asr.pipe(chunk)
-    transcript = asr.get_transcript()
-    transcripts = asr.get_transcripts()
 
-    if len(transcripts) > count:
-        print("\r"+transcripts[-1].text)
-        print('--')
-        count += 1
-    else:
-        print(f"\r{transcript.text}", end="", flush=True)
+def result_loop():
+    last_count = 0
+    last_text = ""
 
+    while not stop_printer.is_set():
+
+        transcripts = asr.get_transcripts()
+        transcript = asr.get_transcript()
+
+        # New committed transcript
+        if len(transcripts) > last_count:
+            for item in transcripts[last_count:]:
+                print(
+                    f"\n[COMMITTED] {item.text}"
+                )
+
+            last_count = len(transcripts)
+
+        # Current uncommitted transcript
+        if transcript.text != last_text:
+            print(
+                f"\r[CURRENT] {transcript.text}",
+                end="",
+                flush=True,
+            )
+            last_text = transcript.text
+
+        stop_printer.wait(0.1)
 ```
-- `asr.pipe`: a threading function for async to process audio for transcribing continuously
 - `asr.get_transcript`: get the current transcirption
 - `asr.get_transcripts`: get whole transcirptions
 
-### 3. Microphone recording setting
+### 3. Callback setting
+```py
+
+def callback(indata, frames, time_info, status):
+    if status:
+        print(status)
+
+    audio = indata[:, 0].copy()
+
+    # Non-blocking.
+    asr.feed(audio)
+```
+- `asr.feed`: a threading function for async to process audio for transcribing continuously
+
+### 4. Microphone recording setting
 
 ```py
-import sounddevice as sd
-from whispercpy.constant import STREAMING_ENDING
 
+# Microphone parameters
 samplerate = 16000
 block_duration = 0.25
 block_size = int(samplerate * block_duration)
 channels = 1
 
-# Recording
+# Streaming asr start
+asr.start()
+
+# Printer threading
+printer_thread = threading.Thread(
+    target=result_loop,
+    daemon=True,
+)
+
+# Printer start
+printer_thread.start()
+
 try:
     with sd.InputStream(
         samplerate=samplerate,
         channels=channels,
-        callback=callback, blocksize=block_size, dtype='float32'):
-        print("🎤 Recording for ASR... Press Ctrl+C to stop.")
+        callback=callback,
+        blocksize=block_size,
+        dtype="float32",
+    ):
+        print(
+            "🎤 Recording for ASR... "
+            "Press Ctrl+C to stop."
+        )
+
         while True:
             sd.sleep(1000)
-except KeyboardInterrupt:
-    print("⏹️ Recording stopped.")
-    # send end signal
-    asr.pipe(STREAMING_ENDING).join()
 
-# Result
-#
+except KeyboardInterrupt:
+    print("\n⏹️ Recording stopped.")
+
+finally:
+    # Stop the live result printer first.
+    stop_printer.set()
+    printer_thread.join()
+
+    # Flush the current transcript.
+    end_thread = asr.end()
+    end_thread.join()
+
+    # Final result.
+    transcripts = asr.get_transcripts()
+
+    print("\n")
+    print("========== Final Result ==========")
+
 # 🎤 Recording for ASR... Press Ctrl+C to stop.
-# This is my voice test.
-# --
-# Can you hear me?
-# --
-# ^C⏹️ Recording stopped.
-# [00:00:00.800 --> 00:00:11.000]  This is my voice test.
+# [CURRENT]  This is voice test.
+# [COMMITTED]  This is voice test.
+# [CURRENT]  Can you hear me?
+# [COMMITTED]  Can you hear me?
+# [CURRENT] ^C
+# ⏹️ Recording stopped.
+#
+#
+# ========== Final Result ==========
+# [00:00:00.050 --> 00:00:10.250]  This is voice test.
 # -------------------------------
-# [00:00:00.800 --> 00:00:00.800] [_BEG_]
-# [00:00:00.800 --> 00:00:01.490]  This
-# [00:00:01.850 --> 00:00:01.850]  is
-# [00:00:01.890 --> 00:00:02.200]  my
-# [00:00:02.200 --> 00:00:03.080]  voice
-# [00:00:03.080 --> 00:00:03.710]  test
-# [00:00:03.710 --> 00:00:08.290] .
-# [00:00:08.300 --> 00:00:11.000] [_TT_150]
+# [00:00:00.050 --> 00:00:00.050] [_BEG_]
+# [00:00:00.480 --> 00:00:01.110]  This
+# [00:00:01.640 --> 00:00:01.640]  is
+# [00:00:01.710 --> 00:00:02.960]  voice
+# [00:00:02.960 --> 00:00:03.340]  test
+# [00:00:03.340 --> 00:00:08.380] .
+# [00:00:08.380 --> 00:00:10.250] [_TT_150]
 # -------------------------------
-# [00:00:11.300 --> 00:00:21.500]  Can you hear me?
+#
+# [00:00:10.550 --> 00:00:20.750]  Can you hear me?
 # -------------------------------
-# [00:00:11.300 --> 00:00:11.300] [_BEG_]
-# [00:00:11.300 --> 00:00:11.790]  Can
-# [00:00:12.050 --> 00:00:12.280]  you
-# [00:00:12.280 --> 00:00:12.940]  hear
-# [00:00:12.940 --> 00:00:13.070]  me
-# [00:00:13.070 --> 00:00:17.960] ?
-# [00:00:17.960 --> 00:00:21.500] [_TT_100]
+# [00:00:10.550 --> 00:00:10.550] [_BEG_]
+# [00:00:10.930 --> 00:00:11.040]  Can
+# [00:00:11.040 --> 00:00:11.480]  you
+# [00:00:11.580 --> 00:00:12.190]  hear
+# [00:00:12.190 --> 00:00:12.250]  me
+# [00:00:12.250 --> 00:00:17.210] ?
+# [00:00:17.210 --> 00:00:20.750] [_TT_100]
 # -------------------------------
 ```
-
-- `STREAMING_ENDING`: a singal for stopping transcribing, and use `join()` for waiting last thread complete.
 
 # License
 This project follows [whisper.cpp](https://github.com/ggml-org/whisper.cpp/) license as MIT
