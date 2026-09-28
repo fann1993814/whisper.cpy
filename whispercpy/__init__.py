@@ -1,2 +1,2 @@
-from .core import WhisperCPP
-from .stream import WhisperStream
+from .offline import WhisperASR, SileroVAD
+from .streaming import StreamingASR

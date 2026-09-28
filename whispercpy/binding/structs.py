@@ -60,6 +60,7 @@ class WhisperFullParams(Structure):
         ('suppress_regex', c_char_p),
         #
         ("initial_prompt", c_char_p),
+        ("carry_initial_prompt", c_bool),
         ("prompt_tokens", POINTER(c_int32)),
         ("prompt_n_tokens", c_int32),
         #

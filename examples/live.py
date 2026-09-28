@@ -1,66 +1,152 @@
 import sounddevice as sd
+import threading
 
-from whispercpy import WhisperCPP, WhisperStream
-from whispercpy.utils import to_timestamp
-from whispercpy.constant import STREAMING_ENDING
+from whispercpy import StreamingASR
+from whispercpy.common import to_timestamp
+
 
 WHISPER_CPP_PATH = "../../whisper.cpp"
 
-lib_path = f"{WHISPER_CPP_PATH}/build/src/libwhisper.dylib"
+lib_path = f"{WHISPER_CPP_PATH}/build/bin/libwhisper.dylib"
 model_path = f"{WHISPER_CPP_PATH}/models/ggml-tiny.bin"
 
-core = WhisperCPP(lib_path, model_path, use_gpu=True)
-asr = WhisperStream(core, language='en', return_token=True)
+
+asr = StreamingASR(
+    lib_path=lib_path,
+    asr_model_path=model_path,
+    language="en",
+    step_ms=250,
+    keep_ms=200,
+    length_ms=10000,
+    return_token=True,
+    use_gpu=True,
+)
+
 
 samplerate = 16000
 block_duration = 0.25
 block_size = int(samplerate * block_duration)
 channels = 1
-count = 0
 
 
-def callback(indata, frames, time, status):
-    global count
+# ----------------------------------------------------------------------
+# Result printer
+# ----------------------------------------------------------------------
 
-    chunk = indata.copy().tobytes()
-    asr.pipe(chunk)
-    transcript = asr.get_transcript()
-    transcripts = asr.get_transcripts()
-
-    if len(transcripts) > count:
-        print("\r"+transcripts[-1].text)
-        print('--')
-        count += 1
-    else:
-        print(f"\r{transcript.text}", end="", flush=True)
+stop_printer = threading.Event()
 
 
-def print_result():
-    transcripts = asr.get_transcripts()
+def result_loop():
+    last_count = 0
+    last_text = ""
 
-    for transcript in transcripts:
-        print(f'[{to_timestamp(transcript.t0, False)}' +
-              " --> " + f'{to_timestamp(transcript.t1, False)}] ' + transcript.text)
-        print('-------------------------------')
-        print('\n'.join([f'[{to_timestamp(token.t0, False)}' +
-                         " --> " + f'{to_timestamp(token.t1, False)}] {token.text}' for token in transcript.tokens]))
-        print('-------------------------------')
+    while not stop_printer.is_set():
+
+        transcripts = asr.get_transcripts()
+        transcript = asr.get_transcript()
+
+        # New committed transcript
+        if len(transcripts) > last_count:
+            for item in transcripts[last_count:]:
+                print(
+                    f"\n[COMMITTED] {item.text}"
+                )
+
+            last_count = len(transcripts)
+
+        # Current uncommitted transcript
+        if transcript.text != last_text:
+            print(
+                f"\r[CURRENT] {transcript.text}",
+                end="",
+                flush=True,
+            )
+            last_text = transcript.text
+
+        stop_printer.wait(0.1)
 
 
+# ----------------------------------------------------------------------
+# Audio callback
+# ----------------------------------------------------------------------
+
+def callback(indata, frames, time_info, status):
+    if status:
+        print(status)
+
+    audio = indata[:, 0].copy()
+
+    # Non-blocking.
+    asr.feed(audio)
+
+
+# ----------------------------------------------------------------------
 # Recording
+# ----------------------------------------------------------------------
+
+asr.start()
+
+printer_thread = threading.Thread(
+    target=result_loop,
+    daemon=True,
+)
+
+printer_thread.start()
+
 try:
     with sd.InputStream(
         samplerate=samplerate,
         channels=channels,
         callback=callback,
         blocksize=block_size,
-        dtype='float32'
+        dtype="float32",
     ):
-        print("🎤 Recording for ASR... Press Ctrl+C to stop.")
+        print(
+            "🎤 Recording for ASR... "
+            "Press Ctrl+C to stop."
+        )
+
         while True:
             sd.sleep(1000)
+
 except KeyboardInterrupt:
-    print("⏹️ Recording stopped.")
-    # send end signal, and await
-    asr.pipe(STREAMING_ENDING).join()
-    print_result()
+    print("\n⏹️ Recording stopped.")
+
+finally:
+    # Stop the live result printer first.
+    stop_printer.set()
+    printer_thread.join()
+
+    # Flush the current transcript.
+    end_thread = asr.end()
+    end_thread.join()
+
+    # Final result.
+    transcripts = asr.get_transcripts()
+
+    print("\n")
+    print("========== Final Result ==========")
+
+    for transcript in transcripts:
+        print(
+            f"[{to_timestamp(transcript.t0, False)}"
+            f" --> "
+            f"{to_timestamp(transcript.t1, False)}] "
+            f"{transcript.text}"
+        )
+
+        print("-------------------------------")
+
+        for token in transcript.tokens:
+            print(
+                f"[{to_timestamp(token.t0, False)}"
+                f" --> "
+                f"{to_timestamp(token.t1, False)}] "
+                f"{token.text}"
+            )
+
+        print("-------------------------------")
+        print()
+
+    asr.stop()
+    asr.close()
