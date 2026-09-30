@@ -21,7 +21,7 @@ from ..common.interface import (
 )
 from .buffer import SlidingAudioBuffer
 from .policy import BasePolicy, FixedStepPolicy
-from ..common.utils import is_speech
+from .vad import WebRTCVAD
 
 
 class StreamingASR(ASRBase):
@@ -51,12 +51,12 @@ class StreamingASR(ASRBase):
         language: str,
         step_ms: int = 200,
         keep_ms: int = 200,
-        length_ms: int = 10000,
+        length_ms: int = 30000,
         return_token: bool = False,
         use_gpu: bool = True,
         verbose: bool = True,
         policy: Optional[BasePolicy] = None,
-        speech_detector=None,
+        speech_detector: Optional[WebRTCVAD] = None,
     ) -> None:
         super().__init__(
             lib_path=lib_path,
@@ -132,7 +132,7 @@ class StreamingASR(ASRBase):
                 step_samples=self.n_samples_step,
                 length_samples=self.n_samples_len,
                 sample_rate=self.sample_rate,
-                speech_detector=is_speech if speech_detector is None else speech_detector,
+                speech_detector=speech_detector,
             )
         else:
             self.policy = policy
@@ -167,9 +167,9 @@ class StreamingASR(ASRBase):
         # modification is serialized.
         self._thread_lock = threading.Lock()
 
-    # ======================================================================
+    # ----------------------------------------------------------------------
     # Session lifecycle
-    # ======================================================================
+    # ----------------------------------------------------------------------
 
     def start(
         self,
@@ -193,7 +193,7 @@ class StreamingASR(ASRBase):
             if params is None:
                 params = self.init_params(
                     strategy=0,
-                    best_of=3,
+                    best_of=1,
                     translate=False,
                     no_timestamps=not self.return_token,
                     no_context=True,
@@ -275,9 +275,9 @@ class StreamingASR(ASRBase):
         except Exception:
             pass
 
-    # ======================================================================
+    # ----------------------------------------------------------------------
     # Audio input
-    # ======================================================================
+    # ----------------------------------------------------------------------
 
     def feed(
         self,
@@ -401,6 +401,8 @@ class StreamingASR(ASRBase):
             ):
                 return
 
+            is_eou = self.policy.is_utterance_end()
+
             # --------------------------------------------------------------
             # 7. Decide whether Whisper inference should actually run.
             #
@@ -408,7 +410,7 @@ class StreamingASR(ASRBase):
             # is still slower than incoming audio.
             # --------------------------------------------------------------
 
-            if self.policy.should_decode():
+            if self.policy.should_decode() or is_eou:
 
                 # Record inference start BEFORE calling Whisper.
                 self.policy.on_decode_start()
@@ -435,8 +437,12 @@ class StreamingASR(ASRBase):
             # 9. Periodically flush the transcript.
             # --------------------------------------------------------------
 
-            if self.policy.should_flush():
+            if is_eou:
+                self.flush(force=True)
+            else:
                 self.flush()
+
+            return
 
     def pipe(
         self,
@@ -476,9 +482,9 @@ class StreamingASR(ASRBase):
 
         return thread
 
-    # ======================================================================
+    # ----------------------------------------------------------------------
     # Whisper inference
-    # ======================================================================
+    # ----------------------------------------------------------------------
 
     def transcribe(
         self,
@@ -660,9 +666,9 @@ class StreamingASR(ASRBase):
 
         return segments
 
-    # ======================================================================
+    # ----------------------------------------------------------------------
     # Transcript processing
-    # ======================================================================
+    # ----------------------------------------------------------------------
 
     def post_process(
         self,
@@ -753,9 +759,9 @@ class StreamingASR(ASRBase):
         self.transcript.text = text
         self.transcript.tokens = tokens
 
-    # ======================================================================
+    # ----------------------------------------------------------------------
     # Transcript flushing
-    # ======================================================================
+    # ----------------------------------------------------------------------
 
     def flush(
         self,
@@ -828,9 +834,9 @@ class StreamingASR(ASRBase):
 
         self.policy.on_flush()
 
-    # ======================================================================
+    # ----------------------------------------------------------------------
     # Results
-    # ======================================================================
+    # ----------------------------------------------------------------------
 
     def get_transcripts(
         self,
