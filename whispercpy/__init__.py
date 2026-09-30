@@ -1,2 +1,2 @@
 from .offline import WhisperASR, SileroVAD
-from .streaming import StreamingASR
+from .streaming import StreamingASR, WebRTCVAD
