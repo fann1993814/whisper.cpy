@@ -16,14 +16,16 @@ class BasePolicy(ABC):
 
     A policy controls:
 
-    - whether the current audio window should be processed
+    - whether the current inference window should be processed
     - whether Whisper decoding should run
+    - whether an utterance has ended
     - when the transcript should be flushed
     - streaming / inference timing state
 
     The policy does not own audio buffering.
 
-    Audio availability is handled by the audio buffer.
+    Audio buffering and inference-window construction are handled by
+    the audio buffer.
     """
 
     @abstractmethod
@@ -41,7 +43,7 @@ class BasePolicy(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def should_process(self, audio: np.ndarray) -> bool:
+    def should_process(self, window: np.ndarray) -> bool:
         """
         Whether the current audio window should be processed.
 
@@ -67,6 +69,11 @@ class BasePolicy(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def is_utterance_end(self) -> bool:
+        """Whether the current utterance has reached end-of-utterance."""
+        raise NotImplementedError
+
+    @abstractmethod
     def should_flush(self, force: bool = False) -> bool:
         """Whether the current transcript should be flushed."""
         raise NotImplementedError
@@ -87,16 +94,19 @@ class FixedStepPolicy(BasePolicy):
     """
     Fixed-step streaming policy.
 
-    This policy preserves the scheduling behavior of the original
-    WhisperStream implementation:
+    Responsibilities:
 
     - speech detection
-    - continuous processing while speech is active
+    - silence / EOU detection
+    - continuous processing while an utterance is active
     - inference-time protection
     - periodic forced decoding
     - periodic transcript flushing
 
     The policy does not own audio data.
+
+    The audio buffer determines when enough new audio is available
+    to construct an inference window.
     """
 
     def __init__(
@@ -105,6 +115,7 @@ class FixedStepPolicy(BasePolicy):
         length_samples: int,
         sample_rate: int = 16000,
         speech_detector: Optional[SpeechDetector] = None,
+        eou_duration_ms: int = 1000,
     ) -> None:
         if step_samples <= 0:
             raise ValueError(
@@ -124,6 +135,11 @@ class FixedStepPolicy(BasePolicy):
                 "sample_rate must be positive"
             )
 
+        if eou_duration_ms < 0:
+            raise ValueError(
+                "eou_duration_ms must be non-negative"
+            )
+
         self.step_samples = step_samples
         self.length_samples = length_samples
         self.sample_rate = sample_rate
@@ -134,35 +150,29 @@ class FixedStepPolicy(BasePolicy):
         # Speech state
         # ------------------------------------------------------------------
 
-        # Corresponds to the original:
-        #
-        #     self.active_speech = False
-        #
-        # Once speech has been detected, subsequent windows are processed
-        # until flush() resets this state.
+        # True after speech has been detected and until EOU / flush.
         self.active_speech = False
+
+        # Number of consecutive non-speech samples after speech started.
+        #
+        # This is measured using NEW audio samples only. It must not be
+        # derived from len(window), because the inference window contains
+        # previously processed audio and may contain overlap.
+        self.silence_samples = 0
+
+        # Silence duration required to declare EOU.
+        self.eou_samples = int(
+            sample_rate * eou_duration_ms / 1000
+        )
 
         # ------------------------------------------------------------------
         # Iteration state
         # ------------------------------------------------------------------
 
-        # Corresponds to:
-        #
-        #     self.n_iter = 0
-        #
         # This is incremented after a processable streaming iteration,
         # regardless of whether Whisper inference actually runs.
         self.n_iter = 0
 
-        # Corresponds to:
-        #
-        #     self.n_new_line = max(
-        #         1,
-        #         int(length_ms / step_ms - 1)
-        #     )
-        #
-        # Since length_samples / step_samples has the same ratio as
-        # length_ms / step_ms, we can calculate it directly in samples.
         self.n_new_line = max(
             1,
             int(length_samples / step_samples - 1),
@@ -172,19 +182,23 @@ class FixedStepPolicy(BasePolicy):
         # Streaming timeline
         # ------------------------------------------------------------------
 
-        # Total number of audio samples received.
-        #
-        # This corresponds to the original stream_ms counter.
+        # Total number of audio samples received by the stream.
         self.stream_samples = 0
+
+        # Stream position observed by should_process().
+        #
+        # This is used to determine how many NEW samples have arrived
+        # since the previous processable window.
+        self.prev_process_stream_samples = 0
 
         # ------------------------------------------------------------------
         # Inference timing
         # ------------------------------------------------------------------
 
-        # Start position of the audio consumed by the previous inference.
+        # Stream position at which the previous Whisper inference started.
         self.prev_inference_start_stream_samples = 0
 
-        # Wall-clock time when the previous inference started.
+        # Wall-clock time at which the previous Whisper inference started.
         self.prev_inference_start_timing = 0.0
 
     # ----------------------------------------------------------------------
@@ -199,10 +213,12 @@ class FixedStepPolicy(BasePolicy):
         """
 
         self.active_speech = False
+        self.silence_samples = 0
 
         self.n_iter = 0
 
         self.stream_samples = 0
+        self.prev_process_stream_samples = 0
 
         self.prev_inference_start_stream_samples = 0
         self.prev_inference_start_timing = 0.0
@@ -215,14 +231,8 @@ class FixedStepPolicy(BasePolicy):
         """
         Add newly received samples to the streaming timeline.
 
-        Note that this counts ALL received audio, even audio that has
-        not yet reached the processing step.
-
-        This matches the original WhisperStream behavior where:
-
-            self.stream_ms += len(chunk) * ...
-
-        happened immediately when a chunk arrived.
+        This represents the global stream position and is independent
+        of the current inference window.
         """
 
         if n_samples < 0:
@@ -233,36 +243,132 @@ class FixedStepPolicy(BasePolicy):
         self.stream_samples += n_samples
 
     # ----------------------------------------------------------------------
-    # Speech / processing policy
+    # Speech / EOU
     # ----------------------------------------------------------------------
 
-    def should_process(self, audio: np.ndarray) -> bool:
+    def should_process(self, window: np.ndarray) -> bool:
         """
-        Decide whether the current window should be processed.
+        Decide whether the current inference window should be processed.
 
-        Behavior matches the original WhisperStream:
+        The input is the complete sliding inference window constructed
+        by the audio buffer.
 
-        1. If speech is already active, process the window.
-        2. If no speech detector is configured, treat the window as speech.
-        3. Otherwise, start processing only when speech is detected.
+        Before speech starts:
+            - run speech detection on the window
+            - wait until speech is detected
+
+        After speech starts:
+            - continue processing both speech and silence
+            - accumulate newly received silence for EOU detection
+
+        Important:
+
+            `window` may contain previously processed audio and overlap.
+            Therefore len(window) must NOT be used to measure streaming
+            progress or silence duration.
+
+            Silence duration is measured from the global streaming
+            timeline using the number of NEW samples received since the
+            previous processable window.
         """
 
-        # Once speech has started, continue processing subsequent
-        # windows until the transcript is flushed.
-        if self.active_speech:
-            return True
+        window = np.asarray(window)
 
-        # Without a speech detector, every window is considered speech.
+        if window.ndim != 1:
+            raise ValueError(
+                "Policy expects a mono audio array."
+            )
+
+        if window.size == 0:
+            return False
+
+        # --------------------------------------------------------------
+        # Determine how much NEW audio has arrived since the previous
+        # processable window.
+        #
+        # Do not use len(window):
+        #
+        #     window = previous audio + overlap + new audio
+        #
+        # The stream timeline is the source of truth.
+        # --------------------------------------------------------------
+
+        new_samples = (
+            self.stream_samples
+            - self.prev_process_stream_samples
+        )
+
+        if new_samples < 0:
+            raise RuntimeError(
+                "Streaming timeline moved backwards."
+            )
+
+        self.prev_process_stream_samples = self.stream_samples
+
+        # --------------------------------------------------------------
+        # Speech detection
+        # --------------------------------------------------------------
+
         if self.speech_detector is None:
             self.active_speech = True
-            return True
+            is_speech = True
+        else:
+            last_chunk = window[-new_samples*2:] if new_samples > 0 else window
+            is_speech = self.speech_detector(last_chunk)
 
-        # Start a new speech segment only when speech is detected.
-        if self.speech_detector(audio):
+        # --------------------------------------------------------------
+        # Speech detected
+        # --------------------------------------------------------------
+
+        if is_speech:
             self.active_speech = True
+            self.silence_samples = 0
+
             return True
 
-        return False
+        # --------------------------------------------------------------
+        # No speech
+        # --------------------------------------------------------------
+
+        if not self.active_speech:
+            # No utterance has started yet.
+            #
+            # Keep waiting for speech. The audio buffer continues to
+            # receive audio independently of this decision.
+            return False
+
+        # --------------------------------------------------------------
+        # Speech has already started.
+        #
+        # Continue processing silence so that:
+        #
+        #     speech -> silence -> EOU
+        #
+        # can be detected.
+        #
+        # Only newly received samples are counted.
+        # --------------------------------------------------------------
+
+        self.silence_samples += new_samples
+
+        return True
+
+    def is_utterance_end(self) -> bool:
+        """
+        Return True when enough consecutive silence has accumulated
+        after speech.
+
+        EOU does not reset the policy state.
+
+        The streaming ASR layer decides how to handle the EOU event,
+        such as performing a final decode and committing the current
+        transcript.
+        """
+
+        if not self.active_speech:
+            return False
+
+        return self.silence_samples >= self.eou_samples
 
     # ----------------------------------------------------------------------
     # Decode scheduling
@@ -272,27 +378,22 @@ class FixedStepPolicy(BasePolicy):
         """
         Decide whether Whisper inference should run.
 
-        This preserves the original WhisperStream logic:
+        If there has been no previous inference, decode immediately.
 
-            if prev_inference_spend_time <=
-                    prev_inference_consume_audio_time
-               or (n_iter + 1) % n_new_line == 0:
+        Otherwise, compare:
 
-                transcribe()
+            inference wall-clock time
 
-        In other words:
+        against:
 
-        - run immediately if there has not been a previous inference
-        - otherwise allow decoding when inference is keeping up
-        - periodically force decoding to avoid starving the decoder
+            amount of new audio accumulated since the previous
+            inference started.
+
+        This prevents Whisper inference from continuously falling
+        behind the incoming audio stream.
         """
 
         # No previous inference.
-        #
-        # Original:
-        #
-        #     prev_inference_start_timing > 0
-        #
         # was used to determine whether a previous inference existed.
         if self.prev_inference_start_timing <= 0:
             return True
@@ -344,10 +445,6 @@ class FixedStepPolicy(BasePolicy):
 
         This is called even when should_decode() returned False.
 
-        That matches the original:
-
-            self.n_iter += 1
-
         which happened after the speech-processing block regardless of
         whether transcribe() was actually called.
         """
@@ -357,14 +454,6 @@ class FixedStepPolicy(BasePolicy):
     def is_flush_iteration(self) -> bool:
         """
         Return whether the current iteration is a forced-decoding iteration.
-
-        The original implementation checked:
-
-            (self.n_iter + 1) % self.n_new_line == 0
-
-        before incrementing n_iter.
-
-        Therefore this method intentionally uses n_iter + 1.
         """
 
         return (
@@ -389,18 +478,19 @@ class FixedStepPolicy(BasePolicy):
 
     def on_flush(self) -> None:
         """
-        Reset speech/inference state after a transcript flush.
+        Reset utterance-related state after a transcript flush.
 
-        The iteration counter and stream position are intentionally
-        preserved.
+        The global stream timeline and iteration counter are preserved.
+
+        The process-observation position is synchronized to the current
+        stream position so that audio already observed before the flush
+        is not counted again.
         """
 
         self.active_speech = False
+        self.silence_samples = 0
 
-        # Match the original flush():
-
-        #     self.prev_inference_start_timing = 0
-
+        self.prev_process_stream_samples = 0
         self.prev_inference_start_timing = 0.0
 
     # ----------------------------------------------------------------------
