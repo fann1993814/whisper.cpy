@@ -1,7 +1,7 @@
 import sounddevice as sd
 import threading
 
-from whispercpy import StreamingASR
+from whispercpy import StreamingASR, WebRTCVAD
 from whispercpy.common import to_timestamp
 
 
@@ -15,11 +15,11 @@ asr = StreamingASR(
     lib_path=lib_path,
     asr_model_path=model_path,
     language="en",
-    step_ms=250,
-    keep_ms=200,
-    length_ms=10000,
+    step_ms=500,
+    keep_ms=250,
     return_token=True,
     use_gpu=True,
+    speech_detector=WebRTCVAD(),
 )
 
 
