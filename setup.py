@@ -6,15 +6,15 @@ from setuptools import find_packages, setup
 this_dir = abspath(dirname(__file__))
 # In Python3 TypeError: a bytes-like object is required, not 'str'
 if sys.version_info[0] < 3:
-    long_description = 'Python wrapper for Whisper.cpp'
+    long_description = 'Python wrapper for whisper.cpp'
 else:
     with open(join(this_dir, 'README.md'), encoding='utf-8') as file:
         long_description = file.read()
 
 setup(
     name='whispercpy',
-    version='0.3.0',
-    description='Python wrapper for Whisper.cpp',
+    version='0.3.2',
+    description='Python wrapper for whisper.cpp',
     long_description=long_description,
     long_description_content_type="text/markdown",
     url='https://github.com/fann1993814/whisper.cpy',
