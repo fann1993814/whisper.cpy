@@ -490,7 +490,7 @@ class FixedStepPolicy(BasePolicy):
         self.active_speech = False
         self.silence_samples = 0
 
-        self.prev_process_stream_samples = 0
+        self.prev_process_stream_samples = self.stream_samples
         self.prev_inference_start_timing = 0.0
 
     # ----------------------------------------------------------------------
