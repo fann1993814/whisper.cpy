@@ -1,12 +1,29 @@
 # whisper.cpy
 
-Python wrapper for [whisper.cpp](https://github.com/ggml-org/whisper.cpp/)
+A lightweight Python wrapper for [whisper.cpp](https://github.com/ggml-org/whisper.cpp), providing both offline and real-time streaming ASR interfaces.
+
+`whisper.cpy` uses `ctypes` to access the native `whisper.cpp` shared library while providing a Python-native API for audio processing, voice activity detection, buffering, and streaming transcription.
 
 # Highlight
 
-1. Lightweight, using `ctypes.CDLL` to call functions from the `libwhisper` shared library.
+* **Lightweight Python binding**
+  Uses `ctypes.CDLL` to interface directly with the `whisper.cpp` shared library without requiring a Python C/C++ extension.
 
-2. Migrate the [`whisper-stream`](https://github.com/ggml-org/whisper.cpp/tree/master/examples/stream) functions to deal with live streaming case for async-processing
+* **Offline ASR**
+  Provides a Python interface for running Whisper transcription on pre-recorded audio.
+
+* **Independent streaming ASR**
+  Provides a dedicated streaming architecture built on top of `whisper.cpp`, rather than directly wrapping the `whisper-stream` example.
+
+* **Streaming audio pipeline**
+  Includes audio buffering, sliding-window processing, VAD, end-of-utterance detection, and streaming state management.
+
+* **Modular architecture**
+  Streaming components such as ASR, VAD, buffering, and decoding policies are separated into independent modules, making it easier to experiment with different streaming strategies.
+
+* **Built on whisper.cpp**
+  Uses `whisper.cpp` as the underlying Whisper inference engine while keeping the higher-level streaming logic in Python.
+
 
 # Index
 <!-- TOC -->
