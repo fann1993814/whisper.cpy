@@ -83,8 +83,14 @@ data, sr = sf.read(audio_wav, dtype='float32')
 ### 3. Load library and model with whisper.cpy, and transcribe, and get transcript results
 
 ```py
+import whispercpy
+
 from whispercpy import WhisperASR, SileroVAD
 from whispercpy.common import to_timestamp
+
+
+# Library Initialization
+whispercpy.set_lib_path(lib_path)
 
 
 # Models Initialization
@@ -168,13 +174,16 @@ Follow below steps, and trace [live.py](./examples/live.py)
 ### 1. Load core engine and steaming decoder with library and model
 
 ```py
+import whispercpy
+
 from whispercpy import StreamingASR, WebRTCVAD
 from whispercpy.common import to_timestamp
+
+whispercpy.set_lib_path(lib_path)
 
 asr = StreamingASR(
     model_path=model_path,
     language="en",
-    lib_path=lib_path,
     step_ms=500,
     keep_ms=250,
     return_token=True,

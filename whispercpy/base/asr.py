@@ -6,6 +6,8 @@ import numpy as np
 from typing import Dict, List, Optional
 from ctypes import c_int32, c_float, c_void_p
 
+from ..config import get_lib_path
+
 from ..binding import WhisperLibrary
 from ..binding.structs import (
     GGML_LOG_CALLBACK,
@@ -34,19 +36,14 @@ class ASRBase:
     def __init__(
             self,
             model_path: str,
-            lib_path: str,
             use_gpu: bool = True,
             verbose: bool = True):
 
         # === Check paths ===
+
         if not os.path.exists(model_path):
             raise FileNotFoundError(
-                f"Whisper ASR model not found: {model_path}"
-            )
-
-        if not os.path.exists(lib_path):
-            raise FileNotFoundError(
-                f"Whisper library not found: {lib_path}"
+                f"whisper.cpp ASR model not found: {model_path}"
             )
 
         self.model_path = model_path
@@ -55,7 +52,7 @@ class ASRBase:
         self.verbose = verbose
 
         # === Load library ===
-        self.whisper = WhisperLibrary(lib_path)
+        self.whisper = WhisperLibrary(get_lib_path())
         self.lib = self.whisper.lib
 
         # === Whisper context ===
@@ -84,7 +81,7 @@ class ASRBase:
 
         if not os.path.exists(vad_model_path):
             raise FileNotFoundError(
-                f"Whisper VAD model not found: {vad_model_path}"
+                f"whisper.cpp VAD model not found: {vad_model_path}"
             )
         else:
             self.vad_model_path = vad_model_path

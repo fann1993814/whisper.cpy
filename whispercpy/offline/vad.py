@@ -6,6 +6,8 @@ import numpy as np
 from typing import List, Optional
 from ctypes import c_float, c_void_p
 
+from ..config import get_lib_path
+
 from ..binding import VADLibrary
 from ..binding.structs import VADParams
 from ..common.interface import VoiceSegment
@@ -24,26 +26,20 @@ class SileroVAD:
 
     def __init__(
             self,
-            lib_path: str,
             model_path: str,
             verbose: bool = True):
 
         # === Check paths ===
-        if not os.path.exists(lib_path):
-            raise FileNotFoundError(
-                f"VAD library not found: {lib_path}"
-            )
-
         if not os.path.exists(model_path):
             raise FileNotFoundError(
-                f"VAD model not found: {model_path}"
+                f"whisper.cpp SileroVAD model not found: {model_path}"
             )
 
         self.model_path = model_path
         self.verbose = verbose
 
         # === Load library ===
-        self.vad = VADLibrary(lib_path)
+        self.vad = VADLibrary(get_lib_path())
         self.lib = self.vad.lib
 
         # === VAD context ===
