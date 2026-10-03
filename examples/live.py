@@ -7,14 +7,14 @@ from whispercpy.common import to_timestamp
 
 WHISPER_CPP_PATH = "../../whisper.cpp"
 
-lib_path = f"{WHISPER_CPP_PATH}/build/bin/libwhisper.dylib"
 model_path = f"{WHISPER_CPP_PATH}/models/ggml-tiny.bin"
+lib_path = f"{WHISPER_CPP_PATH}/build/bin/libwhisper.dylib"
 
 
 asr = StreamingASR(
-    lib_path=lib_path,
-    asr_model_path=model_path,
+    model_path=model_path,
     language="en",
+    lib_path=lib_path,
     step_ms=500,
     keep_ms=250,
     return_token=True,

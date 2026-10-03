@@ -6,15 +6,14 @@ from whispercpy.common import to_timestamp
 WHISPER_CPP_PATH = "../../whisper.cpp"
 
 asr = WhisperASR(
+    model_path=f"{WHISPER_CPP_PATH}/models/ggml-tiny.bin",
     lib_path=f"{WHISPER_CPP_PATH}/build/bin/libwhisper.dylib",
-    asr_model_path=f"{WHISPER_CPP_PATH}/models/ggml-tiny.bin",
-    vad_model_path=f"{WHISPER_CPP_PATH}/models/ggml-silero-v6.2.0.bin",
     use_gpu=True
 )
 
 vad = SileroVAD(
-    lib_path=f"{WHISPER_CPP_PATH}/build/bin/libwhisper.dylib",
     model_path=f"{WHISPER_CPP_PATH}/models/ggml-silero-v6.2.0.bin",
+    lib_path=f"{WHISPER_CPP_PATH}/build/bin/libwhisper.dylib",
 )
 
 print('------- Library Version -------')
