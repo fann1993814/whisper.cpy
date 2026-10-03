@@ -91,8 +91,7 @@ from whispercpy.common import to_timestamp
 
 asr = WhisperASR(
     lib_path=library_path,
-    asr_model_path=asr_model_path,
-    vad_model_path=vad_model_path,
+    model_path=asr_model_path,
     use_gpu=True
 )
 
@@ -174,7 +173,7 @@ from whispercpy.common import to_timestamp
 
 asr = StreamingASR(
     lib_path=lib_path,
-    asr_model_path=model_path,
+    model_path=model_path,
     language="en",
     step_ms=500,
     keep_ms=250,

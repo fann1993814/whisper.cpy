@@ -7,8 +7,7 @@ WHISPER_CPP_PATH = "../../whisper.cpp"
 
 asr = WhisperASR(
     lib_path=f"{WHISPER_CPP_PATH}/build/bin/libwhisper.dylib",
-    asr_model_path=f"{WHISPER_CPP_PATH}/models/ggml-tiny.bin",
-    vad_model_path=f"{WHISPER_CPP_PATH}/models/ggml-silero-v6.2.0.bin",
+    model_path=f"{WHISPER_CPP_PATH}/models/ggml-tiny.bin",
     use_gpu=True
 )
 
