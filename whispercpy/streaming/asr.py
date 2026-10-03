@@ -48,7 +48,6 @@ class StreamingASR(ASRBase):
         self,
         model_path: str,
         language: str,
-        lib_path: str,
         step_ms: int = 500,
         keep_ms: int = 250,
         length_ms: int = 30000,
@@ -60,7 +59,6 @@ class StreamingASR(ASRBase):
     ) -> None:
         super().__init__(
             model_path=model_path,
-            lib_path=lib_path,
             use_gpu=use_gpu,
             verbose=verbose,
         )
