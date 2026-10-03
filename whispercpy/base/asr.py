@@ -4,7 +4,7 @@ import ctypes
 import numpy as np
 
 from typing import Dict, List, Optional
-from ctypes import c_int32, c_void_p
+from ctypes import c_int32, c_float, c_void_p
 
 from ..binding import WhisperLibrary
 from ..binding.structs import (
@@ -12,6 +12,7 @@ from ..binding.structs import (
     WhisperFullParams,
 )
 from ..common.utils import empty_log_callback
+from ..common.interface import TranscriptSegment, TranscriptToken
 
 
 class ASRBase:
@@ -33,8 +34,7 @@ class ASRBase:
     def __init__(
             self,
             lib_path: str,
-            asr_model_path: str,
-            vad_model_path: Optional[str] = None,
+            model_path: str,
             use_gpu: bool = True,
             verbose: bool = True):
 
@@ -44,13 +44,13 @@ class ASRBase:
                 f"Whisper library not found: {lib_path}"
             )
 
-        if not os.path.exists(asr_model_path):
+        if not os.path.exists(model_path):
             raise FileNotFoundError(
-                f"Whisper ASR model not found: {asr_model_path}"
+                f"Whisper ASR model not found: {model_path}"
             )
 
-        self.asr_model_path = asr_model_path
-        self.vad_model_path = vad_model_path
+        self.model_path = model_path
+        self.vad_model_path = None
         self.use_gpu = use_gpu
         self.verbose = verbose
 
@@ -79,6 +79,16 @@ class ASRBase:
         # === Initialize model ===
         self._init_model()
 
+    def _add_vad(self, vad_model_path: str) -> None:
+        """Add a VAD model to the Whisper context."""
+
+        if not os.path.exists(vad_model_path):
+            raise FileNotFoundError(
+                f"Whisper VAD model not found: {vad_model_path}"
+            )
+        else:
+            self.vad_model_path = vad_model_path
+
     def _init_model(self) -> None:
         """Initialize the Whisper model context."""
 
@@ -87,7 +97,7 @@ class ASRBase:
 
         self.ctx = (
             self.lib.whisper_init_from_file_with_params_no_state(
-                self.asr_model_path.encode("utf-8"),
+                self.model_path.encode("utf-8"),
                 context_params,
             )
         )
@@ -473,12 +483,7 @@ class ASRBase:
         # === VAD ===
 
         if self.vad_model_path:
-            if not os.path.exists(self.vad_model_path):
-                raise FileNotFoundError(
-                    f"Whisper VAD model not found: {self.vad_model_path}"
-                )
-            else:
-                params.vad_model_path = self.vad_model_path.encode("utf-8")
+            params.vad_model_path = self.vad_model_path.encode("utf-8")
 
         return params
 
@@ -491,6 +496,156 @@ class ASRBase:
         """
 
         self._param_buffers.pop(id(params), None)
+
+    # ------------------------------------------------------------------
+    # Whisper Inference and Processing Segments
+    # ------------------------------------------------------------------
+
+    def inference(
+        self,
+        audio: np.ndarray,
+        state: c_void_p,
+        params: WhisperFullParams,
+    ) -> List[TranscriptSegment]:
+        """
+        Run whisper.cpp inference.
+        """
+
+        audio = np.ascontiguousarray(
+            audio,
+            dtype=np.float32,
+        )
+
+        ret = self.lib.whisper_full_with_state(
+            self.ctx,
+            state,
+            params,
+            audio.ctypes.data_as(
+                ctypes.POINTER(c_float)
+            ),
+            len(audio),
+        )
+
+        if ret != 0:
+            raise RuntimeError(
+                "whisper_full_with_state() failed "
+                f"with error code {ret}"
+            )
+
+        return self.get_segments(
+            state,
+            params,
+        )
+
+    def get_segments(
+        self,
+        state: c_void_p,
+        params: WhisperFullParams,
+    ) -> List[TranscriptSegment]:
+        """
+        Extract decoded segments and tokens from whisper.cpp state.
+        """
+
+        segments: List[
+            TranscriptSegment
+        ] = []
+
+        n_segments = (
+            self.lib.whisper_full_n_segments_from_state(
+                state
+            )
+        )
+
+        for i in range(n_segments):
+            text = (
+                self.lib.whisper_full_get_segment_text_from_state(
+                    state,
+                    i,
+                )
+                .decode(
+                    "utf-8",
+                    errors="replace",
+                )
+            )
+
+            # Segment timestamps are only requested when timestamps
+            # are enabled.
+            if params.no_timestamps:
+                t0 = None
+                t1 = None
+            else:
+                t0 = (
+                    self.lib.whisper_full_get_segment_t0_from_state(
+                        state,
+                        i,
+                    )
+                )
+
+                t1 = (
+                    self.lib.whisper_full_get_segment_t1_from_state(
+                        state,
+                        i,
+                    )
+                )
+
+            tokens: List[
+                TranscriptToken
+            ] = []
+
+            n_tokens = (
+                self.lib.whisper_full_n_tokens_from_state(
+                    state,
+                    i,
+                )
+            )
+
+            for j in range(n_tokens):
+
+                token_data = (
+                    self.lib.whisper_full_get_token_data_from_state(
+                        state,
+                        i,
+                        j,
+                    )
+                )
+
+                token_text = (
+                    self.lib.whisper_token_to_str(
+                        self.ctx,
+                        token_data.id,
+                    )
+                    .decode(
+                        "utf-8",
+                        errors="replace",
+                    )
+                )
+
+                if params.token_timestamps:
+                    tokens.append(
+                        TranscriptToken(
+                            token_text,
+                            token_data.t0,
+                            token_data.t1,
+                        )
+                    )
+                else:
+                    tokens.append(
+                        TranscriptToken(
+                            token_text
+                        )
+                    )
+
+            segments.append(
+                TranscriptSegment(
+                    i,
+                    text,
+                    tokens,
+                    t0,
+                    t1,
+                )
+            )
+
+        return segments
 
     # ------------------------------------------------------------------
     # General

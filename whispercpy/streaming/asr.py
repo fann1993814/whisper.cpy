@@ -3,7 +3,7 @@ from __future__ import annotations
 import ctypes
 import threading
 
-from ctypes import c_float, c_void_p
+from ctypes import c_void_p
 from threading import Thread
 from typing import List, Optional
 
@@ -47,10 +47,10 @@ class StreamingASR(ASRBase):
     def __init__(
         self,
         lib_path: str,
-        asr_model_path: str,
+        model_path: str,
         language: str,
-        step_ms: int = 200,
-        keep_ms: int = 200,
+        step_ms: int = 500,
+        keep_ms: int = 250,
         length_ms: int = 30000,
         return_token: bool = False,
         use_gpu: bool = True,
@@ -60,7 +60,7 @@ class StreamingASR(ASRBase):
     ) -> None:
         super().__init__(
             lib_path=lib_path,
-            asr_model_path=asr_model_path,
+            model_path=model_path,
             use_gpu=use_gpu,
             verbose=verbose,
         )
@@ -509,7 +509,7 @@ class StreamingASR(ASRBase):
 
         input_samples = len(audio)
 
-        segments = self._inference(
+        segments = self.inference(
             audio,
             self.state,
             self.params,
@@ -519,152 +519,6 @@ class StreamingASR(ASRBase):
             segments,
             input_samples=input_samples,
         )
-
-    def _inference(
-        self,
-        audio: np.ndarray,
-        state: c_void_p,
-        params: WhisperFullParams,
-    ) -> List[TranscriptSegment]:
-        """
-        Run whisper.cpp inference.
-        """
-
-        audio = np.ascontiguousarray(
-            audio,
-            dtype=np.float32,
-        )
-
-        ret = self.lib.whisper_full_with_state(
-            self.ctx,
-            state,
-            params,
-            audio.ctypes.data_as(
-                ctypes.POINTER(c_float)
-            ),
-            len(audio),
-        )
-
-        if ret != 0:
-            raise RuntimeError(
-                "whisper_full_with_state() failed "
-                f"with error code {ret}"
-            )
-
-        return self._get_segments(
-            state,
-            params,
-        )
-
-    def _get_segments(
-        self,
-        state: c_void_p,
-        params: WhisperFullParams,
-    ) -> List[TranscriptSegment]:
-        """
-        Extract decoded segments and tokens from whisper.cpp state.
-        """
-
-        segments: List[
-            TranscriptSegment
-        ] = []
-
-        n_segments = (
-            self.lib.whisper_full_n_segments_from_state(
-                state
-            )
-        )
-
-        for i in range(n_segments):
-            text = (
-                self.lib.whisper_full_get_segment_text_from_state(
-                    state,
-                    i,
-                )
-                .decode(
-                    "utf-8",
-                    errors="replace",
-                )
-            )
-
-            # Segment timestamps are only requested when timestamps
-            # are enabled.
-            if params.no_timestamps:
-                t0 = None
-                t1 = None
-            else:
-                t0 = (
-                    self.lib.whisper_full_get_segment_t0_from_state(
-                        state,
-                        i,
-                    )
-                )
-
-                t1 = (
-                    self.lib.whisper_full_get_segment_t1_from_state(
-                        state,
-                        i,
-                    )
-                )
-
-            tokens: List[
-                TranscriptToken
-            ] = []
-
-            n_tokens = (
-                self.lib.whisper_full_n_tokens_from_state(
-                    state,
-                    i,
-                )
-            )
-
-            for j in range(n_tokens):
-
-                token_data = (
-                    self.lib.whisper_full_get_token_data_from_state(
-                        state,
-                        i,
-                        j,
-                    )
-                )
-
-                token_text = (
-                    self.lib.whisper_token_to_str(
-                        self.ctx,
-                        token_data.id,
-                    )
-                    .decode(
-                        "utf-8",
-                        errors="replace",
-                    )
-                )
-
-                if params.token_timestamps:
-                    tokens.append(
-                        TranscriptToken(
-                            token_text,
-                            token_data.t0,
-                            token_data.t1,
-                        )
-                    )
-                else:
-                    tokens.append(
-                        TranscriptToken(
-                            token_text
-                        )
-                    )
-
-            segments.append(
-                TranscriptSegment(
-                    i,
-                    text,
-                    tokens,
-                    t0,
-                    t1,
-                )
-            )
-
-        return segments
 
     # ----------------------------------------------------------------------
     # Transcript processing
