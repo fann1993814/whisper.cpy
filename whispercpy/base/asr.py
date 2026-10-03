@@ -33,20 +33,20 @@ class ASRBase:
 
     def __init__(
             self,
-            lib_path: str,
             model_path: str,
+            lib_path: str,
             use_gpu: bool = True,
             verbose: bool = True):
 
         # === Check paths ===
-        if not os.path.exists(lib_path):
-            raise FileNotFoundError(
-                f"Whisper library not found: {lib_path}"
-            )
-
         if not os.path.exists(model_path):
             raise FileNotFoundError(
                 f"Whisper ASR model not found: {model_path}"
+            )
+
+        if not os.path.exists(lib_path):
+            raise FileNotFoundError(
+                f"Whisper library not found: {lib_path}"
             )
 
         self.model_path = model_path

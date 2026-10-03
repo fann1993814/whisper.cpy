@@ -46,9 +46,9 @@ class StreamingASR(ASRBase):
 
     def __init__(
         self,
-        lib_path: str,
         model_path: str,
         language: str,
+        lib_path: str,
         step_ms: int = 500,
         keep_ms: int = 250,
         length_ms: int = 30000,
@@ -59,8 +59,8 @@ class StreamingASR(ASRBase):
         speech_detector: Optional[WebRTCVAD] = None,
     ) -> None:
         super().__init__(
-            lib_path=lib_path,
             model_path=model_path,
+            lib_path=lib_path,
             use_gpu=use_gpu,
             verbose=verbose,
         )

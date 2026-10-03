@@ -69,7 +69,7 @@ Follow below steps, and trace [trancribe.py](./examples/trancribe.py)
 audio_wav = f"{WHISPER_CPP_PATH}/samples/jfk.wav"
 asr_model_path = f"{WHISPER_CPP_PATH}/models/ggml-tiny.bin"
 vad_model_path = f"{WHISPER_CPP_PATH}/models/ggml-silero-v6.2.0.bin"
-library_path = f"{WHISPER_CPP_PATH}/build/bin/libwhisper.dylib" # Mac: dylib, Linux: so, Win: dll
+lib_path = f"{WHISPER_CPP_PATH}/build/bin/libwhisper.dylib" # Mac: dylib, Linux: so, Win: dll
 ```
 
 ### 2. Read testing audio of whisper.cpp
@@ -90,14 +90,14 @@ from whispercpy.common import to_timestamp
 # Models Initialization
 
 asr = WhisperASR(
-    lib_path=library_path,
     model_path=asr_model_path,
+    lib_path=lib_path,
     use_gpu=True
 )
 
 vad = SileroVAD(
-    lib_path=library_path,
     model_path=vad_model_path,
+    lib_path=lib_path,
 )
 
 # -------- VAD Detect ---------
@@ -172,9 +172,9 @@ from whispercpy import StreamingASR, WebRTCVAD
 from whispercpy.common import to_timestamp
 
 asr = StreamingASR(
-    lib_path=lib_path,
     model_path=model_path,
     language="en",
+    lib_path=lib_path,
     step_ms=500,
     keep_ms=250,
     return_token=True,
